@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('backups.title') }}</h1>
+<p class="help">{{ t('backups.help', n=max_auto) }}<br>
+{{ t('backups.location') }} <code>{{ backup_dir }}</code></p>
+
+<form method="post" action="{{ url_for('create_backup', save_id=farm.id) }}">
+  <button>{{ t('backups.create') }}</button>
+</form>
+
+{% if backups %}
+<div class="scroll">
+<table>
+  <thead><tr>
+    <th>{{ t('backups.date') }}</th><th>{{ t('backups.origin') }}</th><th>{{ t('backups.size') }}</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for b in backups %}
+    <tr>
+      <td>{{ b.date }}</td>
+      <td>{{ t('backup.reason.' ~ b.reason, default=b.reason) }}</td>
+      <td>{{ t('format.kilobytes', n=b.size_kb|gold) }}</td>
+      <td class="actions">
+        {% if b.valid %}
+        <form method="post" action="{{ url_for('restore_backup', save_id=farm.id, name=b.name) }}"
+              data-confirm="{{ t('backups.confirm_restore', date=b.date) }}">
+          <button>{{ t('backups.restore') }}</button>
+        </form>
+        {% else %}<span class="error-text">{{ t('backups.incomplete') }}</span>{% endif %}
+        <form method="post" action="{{ url_for('delete_backup', save_id=farm.id, name=b.name) }}"
+              data-confirm="{{ t('backups.confirm_delete') }}">
+          <button class="danger">{{ t('backups.delete') }}</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="empty">{{ t('backups.none') }}</p>
+{% endif %}
+{% endblock %}

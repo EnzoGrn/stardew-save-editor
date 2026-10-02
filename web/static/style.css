@@ -1,0 +1,187 @@
+:root {
+  --sky: #8cc6e0;
+  --sky-deep: #5fa3c9;
+  --wood: #8a5530;
+  --wood-dark: #4d2c14;
+  --parchment: #f8e7bd;
+  --parchment-deep: #ecd092;
+  --ink: #3a2413;
+  --gold: #e3a72f;
+  --leaf: #4f8a3a;
+  --danger: #b13e2c;
+  --head: "Pixelify Sans", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Nunito", "Segoe UI", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { background: #b9dcc0; }
+
+body {
+  margin: 0;
+  font: 1rem/1.55 var(--body);
+  color: var(--ink);
+  background: linear-gradient(var(--sky) 0 60%, #b9dcc0 100%) fixed;
+  min-height: 100vh;
+}
+
+.top {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: .5rem 1.5rem;
+  padding: .9rem clamp(1rem, 4vw, 3rem);
+  background: var(--wood-dark);
+  border-bottom: 6px solid var(--wood);
+}
+.brand { font: 700 1.6rem var(--head); color: var(--gold); text-decoration: none; text-shadow: 2px 2px 0 #000; }
+.where { color: var(--parchment); }
+
+.lang-switch { margin-left: auto; display: flex; gap: .25rem; align-self: center; }
+.lang-switch button {
+  font: 500 .9rem var(--head); padding: .2rem .55rem;
+  color: var(--parchment); background: transparent;
+  border: 2px solid var(--wood); box-shadow: none;
+}
+.lang-switch button:hover { background: var(--wood); }
+.lang-switch button[aria-pressed="true"] { background: var(--gold); color: var(--ink); border-color: var(--gold); }
+.lang-switch button:active { transform: none; box-shadow: none; }
+
+main { max-width: 68rem; margin: 0 auto; padding: 1.5rem clamp(.75rem, 3vw, 2rem) 4rem; }
+
+.warning {
+  display: flex; align-items: flex-start; gap: 1rem;
+  margin: 0 0 1rem; padding: .6rem .5rem .6rem 1rem;
+  background: #fff4d6; border-left: 6px solid var(--gold);
+  font-weight: 600;
+}
+.warning p { margin: 0; flex: 1; padding-top: .15rem; }
+.no-warning .warning { display: none; }
+.flash {
+  display: flex; align-items: flex-start; gap: 1rem;
+  margin: 0 0 1rem; padding: .6rem .5rem .6rem 1rem;
+  font-weight: 600; background: #fff; border-left: 6px solid;
+}
+.flash p { margin: 0; flex: 1; padding-top: .15rem; }
+.flash-close {
+  flex: none; width: 2rem; height: 2rem; padding: 0;
+  font: 700 1.4rem/1 var(--body); color: inherit;
+  background: none; border: 0; box-shadow: none;
+}
+.flash-close:hover { background: var(--parchment-deep); }
+.flash-close:active { transform: none; box-shadow: none; }
+
+.back { display: inline-block; margin: 0 0 .8rem; font-weight: 800; color: var(--wood-dark); text-decoration: none; }
+.back:hover { text-decoration: underline; }
+.flash.ok { border-color: var(--leaf); }
+.flash.error { border-color: var(--danger); color: var(--danger); }
+
+/* Tabs as wooden planks resting on the board */
+.tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: -6px; position: relative; }
+.tabs a {
+  font: 500 1.05rem var(--head); text-decoration: none;
+  color: var(--parchment); background: var(--wood);
+  padding: .45rem 1rem .55rem;
+  border: 6px solid var(--wood-dark); border-bottom: 0;
+}
+.tabs a:hover { background: #9d6439; }
+.tabs a[aria-current="page"] { background: var(--parchment); color: var(--ink); padding-bottom: calc(.55rem + 6px); }
+
+.board {
+  background: var(--parchment);
+  border: 6px solid var(--wood-dark);
+  box-shadow: inset 0 0 0 4px var(--wood), 6px 6px 0 rgba(77, 44, 20, .35);
+  padding: clamp(1rem, 3vw, 2rem);
+}
+
+h1, h2 { font-family: var(--head); line-height: 1.2; }
+h1 { font-size: 2.2rem; margin: 0 0 .5rem; }
+h1 small { font: 600 1rem var(--body); color: var(--wood); margin-left: .5rem; }
+h2 { font-size: 1.45rem; margin: 2.2rem 0 .8rem; padding-bottom: .3rem; border-bottom: 3px dotted var(--wood); }
+section:first-of-type h2 { margin-top: 1rem; }
+
+.help { max-width: 70ch; }
+.note { max-width: 70ch; margin: -.6rem 0 0; font-size: .9rem; color: #7b6146; }
+.muted { color: #7b6146; }
+.empty { font-style: italic; }
+.error-text { color: var(--danger); font-weight: 600; }
+code { font-size: .9em; background: var(--parchment-deep); padding: .05rem .35rem; word-break: break-all; }
+
+/* Forms */
+label { font-weight: 600; }
+label small { font-weight: 400; color: #7b6146; }
+input, select {
+  font: inherit; line-height: 1.4; color: var(--ink);
+  height: 2.5rem; padding: .3rem .5rem; background: #fffaf0;
+  border: 2px solid var(--wood); border-radius: 0;
+}
+input[type="number"] { width: 8rem; }
+button {
+  font: 500 1rem var(--head); cursor: pointer;
+  color: var(--ink); background: var(--gold);
+  padding: .45rem 1rem;
+  border: 3px solid var(--wood-dark); border-radius: 0;
+  box-shadow: 3px 3px 0 var(--wood-dark);
+}
+button:hover { background: #f0b943; }
+button:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--wood-dark); }
+button.danger { background: var(--danger); color: #fff; }
+button.danger:hover { background: #c9503c; }
+:focus-visible { outline: 3px solid var(--sky-deep); outline-offset: 2px; }
+
+.fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 1.1rem 1.5rem; margin-bottom: 1rem; }
+.fields label { display: grid; grid-template-rows: auto 1fr auto; gap: .15rem; }
+.field-label { font-weight: 800; }
+.field-hint { font-weight: 400; font-size: .88rem; line-height: 1.3; color: #7b6146; }
+.fields input, .fields select { width: 100%; }
+.check { display: flex; gap: .5rem; align-items: flex-start; font-weight: 400; margin-bottom: 1rem; }
+.check input { margin-top: .3rem; }
+.inline-form { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: 1.5rem 0 1rem; }
+.inline-form label { white-space: nowrap; }
+
+/* Save list */
+.saves { list-style: none; padding: 0; margin: 0; }
+.saves li { border-bottom: 2px dashed var(--parchment-deep); }
+.saves a, .saves li > span { display: flex; flex-wrap: wrap; gap: .3rem 1.5rem; align-items: baseline; padding: .8rem .5rem; color: inherit; text-decoration: none; }
+.saves a:hover { background: var(--parchment-deep); }
+.save-name { font: 700 1.25rem var(--head); min-width: 12rem; }
+.coin { color: #9a6a00; font-weight: 800; }
+
+/* Farm details */
+.facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: .8rem 1.5rem; margin: 0; }
+.facts dt { font-size: .9rem; color: #7b6146; }
+.facts dd { margin: 0; font-weight: 800; }
+
+/* Tables */
+.scroll { overflow-x: auto; margin-bottom: 1rem; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: .5rem .6rem; border-bottom: 2px solid var(--parchment-deep); vertical-align: middle; }
+th { font-family: var(--head); font-weight: 500; }
+td a { color: var(--ink); font-weight: 800; }
+.actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+/* Inventory: a grid of slots, like in the game */
+.inventory { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: .5rem; }
+.inventory li {
+  display: flex; flex-direction: column; gap: .35rem;
+  min-height: 5.5rem; padding: .6rem;
+  background: #fbe9c0; border: 3px solid #c79a5b;
+  box-shadow: inset 2px 2px 0 #fff4db;
+}
+.inventory li.empty { background: var(--parchment-deep); justify-content: center; align-items: center; }
+.item-name { font-weight: 800; }
+.inventory input { width: 100%; }
+
+/* Friendships */
+.friends { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .6rem 1.5rem; margin-bottom: 1rem; }
+.friends label { display: grid; grid-template-columns: 1fr auto; gap: .1rem .6rem; align-items: center; padding: .4rem 0; border-bottom: 2px dotted var(--parchment-deep); }
+.npc { font-weight: 800; }
+.hearts { grid-column: 1 / -1; color: #d2364f; letter-spacing: .05em; font-size: .95rem; }
+.friends input { width: 6.5rem; }
+.friends small { grid-column: 1 / -1; }
+
+@media (prefers-reduced-motion: reduce) { button:active { transform: none; } }
+
+/* Save folder picker */
+.folder-path { margin: 0 0 .8rem; }
+.folder form { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; }
+.folder details { margin-top: 1rem; }
+.folder summary { cursor: pointer; color: #7b6146; width: fit-content; }
+.folder details .inline-form { margin-top: .6rem; }
+button:disabled { opacity: .7; cursor: progress; }

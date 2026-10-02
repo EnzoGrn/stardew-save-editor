@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="{{ lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{{ t('app.title') }}{% endblock %}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script>
+try { if (localStorage.getItem('warningDismissed')) document.documentElement.classList.add('no-warning'); } catch (e) {}
+</script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="{{ url_for('index') }}">{{ t('app.title') }}</a>
+  {% if farm %}<span class="where">{{ t('farm.title', name=farm.farm_name) }} · {{ t('date.full', season=t('season.' ~ farm.season, default=farm.season), day=farm.day, year=farm.year) }}</span>{% endif %}
+  {% if languages|length > 1 %}
+  <form method="post" action="{{ url_for('set_language') }}" class="lang-switch" aria-label="{{ t('lang.label') }}">
+    {% for code, name in languages.items() %}
+      <button name="lang" value="{{ code }}" lang="{{ code }}" title="{{ name }}"
+              aria-pressed="{{ 'true' if code == lang else 'false' }}">{{ code|upper }}</button>
+    {% endfor %}
+  </form>
+  {% endif %}
+</header>
+
+<main>
+  <div class="warning" role="note">
+    <p>{{ t('warning.close_game') }}</p>
+    <button type="button" class="flash-close" aria-label="{{ t('warning.hide') }}">×</button>
+  </div>
+
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in msgs %}
+    <div class="flash {{ cat }}" role="{{ 'alert' if cat == 'error' else 'status' }}">
+      <p>{{ msg }}</p>
+      <button type="button" class="flash-close" aria-label="{{ t('flash.close') }}">×</button>
+    </div>
+    {% endfor %}
+  {% endwith %}
+
+  {% if farm %}
+  <a class="back" href="{{ url_for('index') }}">← {{ t('nav.all_saves') }}</a>
+  <nav class="tabs" aria-label="{{ t('nav.sections') }}">
+    <a href="{{ url_for('farm', save_id=farm.id) }}" {% if tab == 'farm' %}aria-current="page"{% endif %}>{{ t('nav.farm') }}</a>
+    {% for pl in players if pl.customized %}
+      <a href="{{ url_for('player', save_id=farm.id, uid=pl.uid) }}" {% if tab == pl.uid %}aria-current="page"{% endif %}>{{ pl.name }}</a>
+    {% endfor %}
+    <a href="{{ url_for('backups', save_id=farm.id) }}" {% if tab == 'backups' %}aria-current="page"{% endif %}>{{ t('nav.backups') }}</a>
+  </nav>
+  {% endif %}
+
+  <div class="board">{% block content %}{% endblock %}</div>
+</main>
+<script>
+// Forms that need confirming: the question text is in data-confirm
+document.querySelectorAll('form[data-confirm]').forEach(form =>
+  form.addEventListener('submit', event => {
+    if (!confirm(form.dataset.confirm)) event.preventDefault();
+  }));
+
+document.querySelectorAll('.flash-close').forEach(btn =>
+  btn.addEventListener('click', () => {
+    const box = btn.closest('.flash, .warning');
+    // The warning stays hidden from page to page, in this browser
+    if (box.classList.contains('warning')) {
+      try { localStorage.setItem('warningDismissed', '1'); } catch (e) {}
+    }
+    box.remove();
+  }));
+</script>
+</body>
+</html>

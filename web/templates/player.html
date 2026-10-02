@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ p.name }} <small>{{ t('role.host') if p.is_host else t('role.farmhand') }}</small></h1>
+
+<form method="post" action="{{ url_for('rename_player', save_id=farm.id, uid=p.uid) }}" class="inline-form">
+  <label for="player_name">{{ t('field.player_name') }}</label>
+  <input id="player_name" name="player_name" value="{{ p.name }}" maxlength="32" size="24" required>
+  <button>{{ t('player.rename') }}</button>
+</form>
+
+<section id="stats">
+<h2>{{ t('stats.title') }}</h2>
+<form method="post" action="{{ url_for('set_stats', save_id=farm.id, uid=p.uid) }}">
+  <div class="fields">
+    <label>
+      <span class="field-label">{{ t('field.money') }}</span>
+      <span class="field-hint">{% if farm.shared_wallet %}{{ t('stats.money_shared') }}{% endif %}</span>
+      <input name="money" type="number" min="0" max="99999999" value="{{ p.money }}"></label>
+    <label>
+      <span class="field-label">{{ t('field.qi_gems') }}</span>
+      <span class="field-hint"></span>
+      <input name="qi_gems" type="number" min="0" value="{{ p.qi_gems }}"></label>
+    <label>
+      <span class="field-label">{{ t('field.club_coins') }}</span>
+      <span class="field-hint"></span>
+      <input name="club_coins" type="number" min="0" value="{{ p.club_coins }}"></label>
+    <label>
+      <span class="field-label">{{ t('field.max_stamina') }}</span>
+      <span class="field-hint">{{ t('stats.stamina_hint') }}</span>
+      <input name="max_stamina" type="number" min="270" max="508" value="{{ p.max_stamina }}"></label>
+    <label>
+      <span class="field-label">{{ t('field.max_health') }}</span>
+      <span class="field-hint"></span>
+      <input name="max_health" type="number" min="100" max="300" value="{{ p.max_health }}"></label>
+    <label>
+      <span class="field-label">{{ t('field.max_items') }}</span>
+      <span class="field-hint"></span>
+      <select name="max_items">{% for n in BACKPACK_SIZES %}<option {% if n == p.max_items %}selected{% endif %}>{{ n }}</option>{% endfor %}</select></label>
+  </div>
+  <p class="muted">{{ t('stats.summary', earned=t('format.gold', amount=p.total_earned|gold), level=p.deepest_mine) }}</p>
+  <button>{{ t('stats.save') }}</button>
+</form>
+</section>
+
+<section id="skills">
+<h2>{{ t('skills.title') }}</h2>
+<form method="post" action="{{ url_for('set_skills', save_id=farm.id, uid=p.uid) }}">
+  <div class="fields">
+  {% for s in p.skills %}
+    <label>
+      <span class="field-label">{{ t('skill.' ~ s.id) }}</span>
+      <span class="field-hint">{{ t('skills.xp', xp=s.xp|gold) }}</span>
+      <input name="skill_{{ s.index }}" type="number" min="0" max="10" value="{{ s.level }}"></label>
+  {% endfor %}
+  </div>
+  <label class="check"><input type="checkbox" name="show_levelup" checked>
+    {{ t('skills.levelup') }}</label>
+  <button>{{ t('skills.save') }}</button>
+</form>
+</section>
+
+<section id="inventory">
+<h2>{{ t('inventory.title') }}</h2>
+<form method="post" action="{{ url_for('set_inventory', save_id=farm.id, uid=p.uid) }}">
+<ol class="inventory">
+{% for it in inventory %}
+  <li class="{{ 'empty' if it.empty }}">
+  {% if it.empty %}
+    <span class="muted">{{ t('inventory.empty_slot') }}</span>
+  {% else %}
+    <span class="item-name">{{ it.name }}</span>
+    {% if it.editable %}
+      <input aria-label="{{ t('inventory.quantity_of', item=it.name) }}" name="stack_{{ it.slot }}" type="number" min="1" max="999" value="{{ it.stack }}">
+      <select aria-label="{{ t('inventory.quality_of', item=it.name) }}" name="quality_{{ it.slot }}">
+        {% for q in QUALITIES %}<option value="{{ q }}" {% if q == it.quality %}selected{% endif %}>{{ t('quality.' ~ q) }}</option>{% endfor %}
+      </select>
+    {% else %}
+      <span class="muted">{{ t('item_type.' ~ it.type, default=it.type) }}</span>
+    {% endif %}
+  {% endif %}
+  </li>
+{% endfor %}
+</ol>
+{% if inventory|selectattr('editable')|list %}<button>{{ t('inventory.save') }}</button>
+{% else %}<p class="muted">{{ t('inventory.nothing_editable') }}</p>{% endif %}
+</form>
+</section>
+
+<section id="friends">
+<h2>{{ t('friends.title') }}</h2>
+{% if friendships %}
+<form method="post" action="{{ url_for('set_friendships', save_id=farm.id, uid=p.uid) }}">
+<p class="help">{{ t('friends.help', per_heart=POINTS_PER_HEART, ten_hearts=(10 * POINTS_PER_HEART)|gold, max=MAX_POINTS|gold) }}</p>
+<div class="friends" data-points-per-heart="{{ POINTS_PER_HEART }}">
+{% for f in friendships %}
+  <label>
+    <span class="npc">{{ f.npc }}</span>
+    <input name="npc_{{ f.npc }}" type="number" min="0" max="{{ MAX_POINTS }}" step="1" value="{{ f.points }}">
+    <span class="hearts" data-for="npc_{{ f.npc }}" aria-hidden="true"></span>
+    <small>{{ t('friendship.' ~ f.status, default=f.status) }}</small>
+  </label>
+{% endfor %}
+</div>
+<button>{{ t('friends.save') }}</button>
+</form>
+{% else %}
+<p class="empty">{{ t('friends.none', name=p.name) }}</p>
+{% endif %}
+</section>
+
+<script>
+// Shows the hearts next to each field and updates them while typing
+document.querySelectorAll('.hearts').forEach(span => {
+  const perHeart = +span.closest('.friends').dataset.pointsPerHeart;
+  const input = document.querySelector(`[name="${span.dataset.for}"]`);
+  const draw = () => {
+    const h = Math.min(14, Math.floor((+input.value || 0) / perHeart));
+    span.textContent = '♥'.repeat(h) + '♡'.repeat(Math.max(0, 10 - h));
+  };
+  input.addEventListener('input', draw); draw();
+});
+</script>
+{% endblock %}

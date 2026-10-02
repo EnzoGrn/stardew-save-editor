@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('index.title') }}</h1>
+
+{% if not exists %}
+  <p class="empty">{{ t('index.no_folder', path=saves_dir) }}</p>
+{% elif not saves %}
+  <p class="empty">{{ t('index.no_saves', path=saves_dir) }}</p>
+{% else %}
+  <ul class="saves">
+  {% for s in saves %}
+    <li>
+    {% if s.error %}
+      <span class="save-name">{{ s.id }}</span>
+      <span class="error-text">{{ t('index.unreadable', error=s.error) }}</span>
+    {% else %}
+      <a href="{{ url_for('farm', save_id=s.id) }}">
+        <span class="save-name">{{ t('farm.title', name=s.farm) }}</span>
+        <span>{{ s.farmer }}</span>
+        <span>{{ t('date.full', season=t('season.' ~ s.season), day=s.day, year=s.year) }}</span>
+        <span class="coin">{{ t('format.gold', amount=s.money|gold) }}</span>
+        <span class="muted">v{{ s.version }}</span>
+      </a>
+    {% endif %}
+    </li>
+  {% endfor %}
+  </ul>
+{% endif %}
+
+<section class="folder">
+  <h2>{{ t('folder.title') }}</h2>
+  <p class="folder-path"><code>{{ saves_dir }}</code></p>
+  <form method="post" action="{{ url_for('pick_saves_dir') }}" id="pick-form">
+    <button id="pick-button" data-busy-text="{{ t('folder.picking') }}">{{ t('folder.pick') }}</button>
+    <span class="muted" id="pick-hint" hidden>{{ t('folder.pick_hint') }}</span>
+  </form>
+  <details>
+    <summary>{{ t('folder.manual') }}</summary>
+    <form method="post" class="inline-form">
+      <input aria-label="{{ t('folder.manual_label') }}" name="saves_dir" value="{{ saves_dir }}" size="60">
+      <button>{{ t('folder.manual_submit') }}</button>
+    </form>
+  </details>
+</section>
+
+<script>
+// The page waits while the file explorer window is open: show that it's busy
+document.getElementById('pick-form').addEventListener('submit', () => {
+  const btn = document.getElementById('pick-button');
+  btn.disabled = true;
+  btn.textContent = btn.dataset.busyText;
+  document.getElementById('pick-hint').hidden = false;
+});
+</script>
+{% endblock %}

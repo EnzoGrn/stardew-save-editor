@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('farm.title', name=farm.farm_name) }}</h1>
+
+<form method="post" action="{{ url_for('rename_farm', save_id=farm.id) }}" class="inline-form">
+  <label for="farm_name">{{ t('field.farm_name') }}</label>
+  <input id="farm_name" name="farm_name" value="{{ farm.farm_name }}" maxlength="32" size="24" required>
+  <button>{{ t('farm.rename') }}</button>
+</form>
+<p class="note">{{ t('farm.folder_note', folder=farm.id) }}</p>
+
+<dl class="facts">
+  <div><dt>{{ t('farm.type') }}</dt><dd>{{ t('farm_type.' ~ farm.farm_type, default=farm.farm_type) }}</dd></div>
+  <div><dt>{{ t('farm.date') }}</dt><dd>{{ t('date.full', season=t('season.' ~ farm.season, default=farm.season), day=farm.day, year=farm.year) }}</dd></div>
+  <div><dt>{{ t('farm.played') }}</dt><dd>{{ farm.played_ms|duration }}</dd></div>
+  <div><dt>{{ t('farm.wallet') }}</dt><dd>{{ t('farm.wallet_shared') if farm.shared_wallet else t('farm.wallet_separate') }}</dd></div>
+  <div><dt>{{ t('farm.version') }}</dt><dd>{{ farm.version }}</dd></div>
+  <div><dt>{{ t('farm.unique_id') }}</dt><dd>{{ farm.unique_id }}</dd></div>
+</dl>
+
+<form method="post" action="{{ url_for('set_walnuts', save_id=farm.id) }}" class="inline-form">
+  <label for="golden_walnuts">{{ t('field.golden_walnuts') }}</label>
+  <input id="golden_walnuts" name="golden_walnuts" type="number" min="0" max="130" value="{{ farm.golden_walnuts }}">
+  <button>{{ t('action.save') }}</button>
+</form>
+<h2>{{ t('accounts.title') }}</h2>
+<p class="help">{{ t('accounts.help') }}</p>
+
+<div class="scroll">
+<table>
+  <thead><tr>
+    <th>{{ t('accounts.farmer') }}</th><th>{{ t('accounts.role') }}</th>
+    <th>{{ t('accounts.multiplayer_id') }}</th><th>{{ t('accounts.user_id') }}</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for pl in players %}
+    <tr>
+      <td>{% if pl.customized %}<a href="{{ url_for('player', save_id=farm.id, uid=pl.uid) }}">{{ pl.name }}</a>{% else %}<span class="muted">{{ t('accounts.free_slot') }}</span>{% endif %}</td>
+      <td>{{ t('role.host') if pl.is_host else t('role.farmhand') }}</td>
+      <td><code>{{ pl.uid }}</code></td>
+      <td>{% if pl.user_id %}<code>{{ pl.user_id }}</code>{% else %}<span class="muted">{{ t('accounts.none') }}</span>{% endif %}</td>
+      <td>{% if pl.user_id %}
+        <form method="post" action="{{ url_for('clear_userid', save_id=farm.id, uid=pl.uid) }}"
+              data-confirm="{{ t('accounts.confirm_clear', name=pl.name) }}">
+          <button class="danger">{{ t('accounts.clear') }}</button>
+        </form>{% endif %}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+
+{% if players|selectattr('user_id')|list|length > 1 %}
+<form method="post" action="{{ url_for('clear_all_userids', save_id=farm.id) }}"
+      data-confirm="{{ t('accounts.confirm_clear_all') }}">
+  <button class="danger">{{ t('accounts.clear_all') }}</button>
+</form>
+{% endif %}
+{% endblock %}
