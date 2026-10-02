@@ -7,7 +7,7 @@ from flask import (Flask, abort, flash, g, jsonify, redirect, render_template, r
 
 from sdvsave import SaveGame, SaveError, backup, default_saves_dir, gamefolder, list_saves
 from sdvsave.constants import QUALITIES, POINTS_PER_HEART, MAX_FRIENDSHIP_POINTS, BACKPACK_SIZES
-from sdvsave import items
+from sdvsave import appearance, items
 from sdvsave.constants import XSI
 from sdvsave.gamedata import GameData, find_data_dir
 from sdvsave.savegame import bounded
@@ -241,6 +241,7 @@ def player(save_id, uid):
                            inventory=inventory, friendships=sg.friendships(uid),
                            free_slots=[s["slot"] for s in inventory if s["empty"]],
                            recipes=recipe_lists(sg.recipes(uid), data),
+                           look=look_view(sg.appearance(uid), data),
                            has_game_data=data is not None, tab=uid)
 
 
@@ -261,6 +262,107 @@ def recipe_lists(known, data):
                  for name, count in sorted(counts.items()) if name not in listed]
         lists[kind] = {"rows": rows, "known": sum(row["known"] for row in rows)}
     return lists
+
+
+# Clothes on the appearance form: (worn key, catalogue prefix, icon scale)
+_CLOTHES = (("shirt", "S", 4), ("pants", "P", 2), ("hat", "H", 2), ("boots", "B", 2))
+
+# Farmer sheets used by the full preview (static/farmer.js), by the name the script uses
+_FARMER_SHEETS = {
+    "base": "Characters/Farmer/farmer_base", "girl": "Characters/Farmer/farmer_girl_base",
+    "base_bald": "Characters/Farmer/farmer_base_bald", "girl_bald": "Characters/Farmer/farmer_girl_base_bald",
+    "skin": "Characters/Farmer/skinColors", "shoes": "Characters/Farmer/shoeColors",
+    "accessories": "Characters/Farmer/accessories",
+    "shirts": "Characters/Farmer/shirts", "pants": "Characters/Farmer/pants",  # default clothes
+    "hairstyles": "Characters/Farmer/hairstyles",  # short styles drawn under some hats
+}
+# Default sheets of worn items, when the game data doesn't give one
+_WORN_SHEETS = {"shirt": "Characters/Farmer/shirts", "pants": "Characters/Farmer/pants",
+                "hat": "Characters/Farmer/hats"}
+
+
+def _render_data(key, qualified, data, worn=None):
+    """What the full preview needs to draw a worn item: its sheet, sprite index and drawing rules."""
+    found = data.sprite(qualified) if data and qualified in data.items else None
+    if found:
+        sheet, index = found
+    elif worn and key != "boots":
+        sheet, index = _WORN_SHEETS[key], worn.get("sprite", int(worn["item_id"]) if worn["item_id"].isdigit() else -1)
+    else:
+        sheet, index = None, -1
+    render = {"sheet": url_for("game_image", sheet=sheet) if sheet and data and data.sheet_exists(sheet) else None,
+              "index": index}
+    item = data.items.get(qualified) if data else None
+    if key == "shirt":
+        render["sleeves"] = item["data"].get("HasSleeves", True) if item else True
+    elif key == "hat":
+        if item:
+            render["hair_draw"], render["ignore_offset"], _ = appearance.hat_fields(item.get("fields", []))
+        elif worn:
+            render["hair_draw"], render["ignore_offset"] = worn["hair_draw"], worn["ignore_offset"]
+    elif key == "boots":
+        fields = item.get("fields", []) if item else []
+        render = {"color_index": int(fields[5]) if len(fields) > 5 and fields[5].strip().isdigit()
+                  else (worn or {}).get("color_index", int(appearance.NO_BOOTS_SHOE_COLOR))}
+    return render
+
+
+def _hair_render(icon, covered=None):
+    """Where the full preview finds a hairstyle, and its version drawn under brimmed hats."""
+    render = {"sheet": url_for("game_image", sheet=icon["sheet"]), "x": icon["x"], "y": icon["y"],
+              "bald": icon["bald"]}
+    if covered:
+        render["covered"] = {"sheet": url_for("game_image", sheet=covered["sheet"]),
+                             "x": covered["x"], "y": covered["y"]}
+    return render
+
+
+def look_view(current, data):
+    """The appearance form: current values and every choice, with previews when game data is there."""
+    lang = current_lang()
+    hairs = data.hairstyles() if data else dict.fromkeys(appearance.DEFAULT_HAIRS)
+    if current["hair"] not in hairs:  # a hairstyle from a mod: keep it selectable
+        hairs[current["hair"]] = None
+    covered_hairs = data.hairstyles(covered=True) if data else {}
+    view = {
+        **current,
+        "genders": appearance.GENDERS,
+        "skins": [{"value": i, "icon": icon_style(data.skin_icon(i), fit=40) if data else None}
+                  for i in range(appearance.SKIN_COUNT)],
+        "hairs": [{"value": i, "icon": icon_style(icon),
+                   "render": _hair_render(icon, covered_hairs.get(icon["covered"])) if icon else None}
+                  for i, icon in sorted(hairs.items())],
+        "accessories": [{"value": i, "tinted": 0 <= i < appearance.TINTED_ACCESSORIES,
+                         "icon": icon_style(data.accessory_icon(i)) if data and i >= 0 else None}
+                        for i in range(-1, appearance.ACCESSORY_COUNT)],
+        "clothes": {},
+        # The full preview needs the body sheets; without them only the per-choice sprites show
+        "sheets": {name: url_for("game_image", sheet=sheet) for name, sheet in _FARMER_SHEETS.items()
+                   if data and data.sheet_exists(sheet)},
+    }
+    view["can_draw_farmer"] = all(name in view["sheets"] for name in ("base", "girl", "skin", "shoes"))
+    for key, prefix, scale in _CLOTHES:
+        worn = current["worn"][key]
+        selected = f"{prefix}:{worn['item_id']}" if worn else ""
+        options = []
+        if data:
+            for qualified, name in data.clothing(prefix, lang):
+                item_data = data.items[qualified]["data"]
+                options.append({
+                    "value": qualified, "label": name,
+                    "icon": icon_style(data.icon(qualified), scale=scale),
+                    "dye_icon": icon_style(data.icon(qualified, dye_layer=True), scale=scale),
+                    "dyeable": bool(item_data.get("CanBeDyed")),
+                    "color": appearance.hex_color(appearance.rgb_from_data(item_data.get("DefaultColor"))),
+                    "render": _render_data(key, qualified, data),
+                })
+        if worn and selected not in {o["value"] for o in options}:
+            # Not in the game data (a mod's item, or no game data): shown, can be kept
+            options.insert(0, {"value": selected, "label": worn["name"], "icon": None, "dye_icon": None,
+                               "dyeable": worn.get("dyeable", False), "color": worn.get("color"),
+                               "render": _render_data(key, selected, data, worn)})
+        view["clothes"][key] = {"selected": selected, "options": options, "worn": worn}
+    return view
 
 
 def describe_item(element):
@@ -374,6 +476,26 @@ def set_friendships(save_id, uid):
     points = {k[4:]: v for k, v in request.form.items() if k.startswith("npc_")}
     edit(save_id, lambda sg: sg.set_friendships(uid, points), "flash.friendships_saved")
     return redirect(url_for("player", save_id=save_id, uid=uid) + "#friends")
+
+
+@app.post("/save/<save_id>/player/<uid>/appearance")
+def set_appearance(save_id, uid):
+    form = request.form
+    values = {key: form[key] for key in ("gender", "skin", "hair", "accessory", "hair_color", "eye_color",
+                                         "shirt_color", "pants_color", "hat", "boots") if key in form}
+    data = game_data()
+
+    def change(sg):
+        worn = sg.appearance(uid)["worn"]
+        # A shirt or pants is only replaced when another one was picked
+        for key, prefix in (("shirt", "S"), ("pants", "P")):
+            picked = form.get(key, "")
+            if picked and not (worn[key] and picked == f"{prefix}:{worn[key]['item_id']}"):
+                values[key] = picked
+        sg.set_appearance(uid, values, data)
+
+    edit(save_id, change, "flash.appearance_saved")
+    return redirect(url_for("player", save_id=save_id, uid=uid) + "#appearance")
 
 
 @app.post("/save/<save_id>/player/<uid>/inventory")

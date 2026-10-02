@@ -42,21 +42,39 @@ _SLASH_FILES = {
     "F": ("Furniture", 0, 7),
 }
 
-# Save item class (xsi:type) → catalogue prefix
+# Save item class (xsi:type) > catalogue prefix
 _TOOL_TYPES = {"Axe", "Hoe", "Pickaxe", "WateringCan", "FishingRod", "Pan", "Shears",
                "MilkPail", "Wand", "GenericTool", "Lantern", "Raft"}
 _FURNITURE_TYPES = {"Furniture", "BedFurniture", "StorageFurniture", "TV",
                     "FishTankFurniture", "RandomizedPlantFurniture"}
 
-# Icons: default sprite sheet per catalogue, and the size of one sprite on it
+# Icons: default sprite sheet per catalogue and where an icon is on it:
+# (sheet, icon width, icon height, step between icons across, step down,
+#  width of the sheet part holding icons (None: all of it), icon offset x, y).
+# Hats have one sprite per facing direction, stacked: the step down is 4 sprites.
+# Shirts: the left half holds the shirts (8x8 icon over 8x32), the right half
+# the parts that take the dye color. Pants: one 192x688 block per pair, with the
+# 16x16 icon at its bottom left.
 _SHEETS = {
-    "O": ("Maps/springobjects", 16, 16),
-    "BC": ("TileSheets/Craftables", 16, 32),
-    "T": ("TileSheets/tools", 16, 16),
-    "W": ("TileSheets/weapons", 16, 16),
-    "H": ("Characters/Farmer/hats", 20, 20),
-    "B": ("Maps/springobjects", 16, 16),
+    "O": ("Maps/springobjects", 16, 16, 16, 16, None, 0, 0),
+    "BC": ("TileSheets/Craftables", 16, 32, 16, 32, None, 0, 0),
+    "T": ("TileSheets/tools", 16, 16, 16, 16, None, 0, 0),
+    "W": ("TileSheets/weapons", 16, 16, 16, 16, None, 0, 0),
+    "H": ("Characters/Farmer/hats", 20, 20, 20, 80, None, 0, 0),
+    "B": ("Maps/springobjects", 16, 16, 16, 16, None, 0, 0),
+    "S": ("Characters/Farmer/shirts", 8, 8, 8, 32, 128, 0, 0),
+    "P": ("Characters/Farmer/pants", 16, 16, 192, 688, None, 0, 672),
 }
+_SHIRT_DYE_OFFSET = 128  # dye layer of a shirt: same place, in the right half of the sheet
+# Slash data fields giving a custom sprite index and texture: (index field, texture field)
+_SLASH_SPRITE_FIELDS = {"H": (6, 7), "B": (8, 9)}
+
+# Farmer sheets for the look: hairstyles (16x32 front sprite, 96 px per style
+# for the three facings), accessories (16x16, 32 px per row) and skin colors
+# (3 shades per skin, read pixel by pixel)
+HAIR_SHEET = "Characters/Farmer/hairstyles"
+ACCESSORY_SHEET = "Characters/Farmer/accessories"
+SKIN_SHEET = "Characters/Farmer/skinColors"
 
 # Items the app can create from scratch: plain objects and big craftables.
 # Some ids are their own class in the game (with extra fields a plain object
@@ -103,11 +121,11 @@ class GameData:
 
     def __init__(self, data_dir):
         self.data_dir = Path(data_dir)
-        self.items = {}           # "O:330" → {"name", "display" (raw display name), "data"}
-        self._strings = {}        # (asset, lang suffix) → dict, loaded on demand
-        self._localized_data = {}  # (file, lang suffix) → dict, loaded on demand
-        self._sheet_sizes = {}    # sprite sheet → (width, height), read on demand
-        self._search_index = {}   # lang → [(folded text, qualified id)], built on demand
+        self.items = {}           # "O:330" > {"name", "display" (raw display name), "data"}
+        self._strings = {}        # (asset, lang suffix) > dict, loaded on demand
+        self._localized_data = {}  # (file, lang suffix) > dict, loaded on demand
+        self._sheet_sizes = {}    # sprite sheet > (width, height), read on demand
+        self._search_index = {}   # lang > [(folded text, qualified id)], built on demand
         self.languages = self._find_languages()
         self._load_items()
 
@@ -143,11 +161,12 @@ class GameData:
                         "name": fields[name_at] if len(fields) > name_at else item_id,
                         "display": fields[display_at] if len(fields) > display_at else None,
                         "slash": (file, display_at),
+                        "fields": fields,
                         "data": {},
                     }
 
     def _suffix(self, lang):
-        """Strings file suffix for a UI language: "fr" → "fr-FR", English → ""."""
+        """Strings file suffix for a UI language: "fr" > "fr-FR", English > ""."""
         return self.languages.get((lang or "").lower(), "")
 
     def _strings_file(self, asset, suffix):
@@ -278,31 +297,110 @@ class GameData:
             self._sheet_sizes[sheet] = size
         return self._sheet_sizes[sheet]
 
-    def icon(self, qualified_id):
-        """Where an item's sprite is: {"sheet", "x", "y", "w", "h", "sheet_w", "sheet_h"}, or None."""
+    def _icon_at(self, sheet, index, w, h, step_x=None, step_y=None, area_w=None, dx=0, dy=0):
+        """Icon dict for sprite number `index` on a sheet laid out in a grid, or None."""
+        size = self._sheet_size(sheet)
+        if size is None or index < 0:
+            return None
+        step_x, step_y = step_x or w, step_y or h
+        columns = max(1, (area_w or size[0]) // step_x)
+        return {"sheet": sheet, "x": index % columns * step_x + dx, "y": index // columns * step_y + dy,
+                "w": w, "h": h, "sheet_w": size[0], "sheet_h": size[1]}
+
+    def sprite(self, qualified_id):
+        """(sheet, sprite index) of an item, or None: where the game draws it from."""
         item = self.items.get(qualified_id)
         prefix = qualified_id.split(":", 1)[0]
         if item is None or prefix not in _SHEETS:
             return None
-        sheet, w, h = _SHEETS[prefix]
+        sheet = _SHEETS[prefix][0]
         data = item["data"]
         if data.get("Texture"):
             sheet = data["Texture"].replace("\\", "/")
+        fields = item.get("fields", [])
+        sprite_at, texture_at = _SLASH_SPRITE_FIELDS.get(prefix, (None, None))
         if prefix == "T" and data.get("MenuSpriteIndex", -1) >= 0:
-            index = data["MenuSpriteIndex"]
-        elif "SpriteIndex" in data:
-            index = data["SpriteIndex"]
-        else:
-            item_id = qualified_id.split(":", 1)[1]
-            if not item_id.isdigit():
-                return None
-            index = int(item_id)  # hats and boots: the sprite index is the id
-        size = self._sheet_size(sheet)
-        if size is None or index < 0:
+            return sheet, data["MenuSpriteIndex"]
+        if "SpriteIndex" in data:
+            return sheet, data["SpriteIndex"]
+        if sprite_at is not None and len(fields) > sprite_at and fields[sprite_at].strip().lstrip("-").isdigit():
+            # 1.6 hats and boots with their own sprite
+            if len(fields) > texture_at and fields[texture_at].strip():
+                sheet = fields[texture_at].strip().replace("\\", "/")
+            return sheet, int(fields[sprite_at])
+        item_id = qualified_id.split(":", 1)[1]
+        return (sheet, int(item_id)) if item_id.isdigit() else None  # hats and boots: the id
+
+    def icon(self, qualified_id, dye_layer=False):
+        """Where an item's sprite is: {"sheet", "x", "y", "w", "h", "sheet_w", "sheet_h"}, or None.
+
+        dye_layer: for a dyeable shirt, the part of the icon that takes the dye color.
+        """
+        found = self.sprite(qualified_id)
+        if found is None:
             return None
-        columns = max(1, size[0] // w)
-        return {"sheet": sheet, "x": index % columns * w, "y": index // columns * h,
-                "w": w, "h": h, "sheet_w": size[0], "sheet_h": size[1]}
+        sheet, index = found
+        prefix = qualified_id.split(":", 1)[0]
+        _, w, h, step_x, step_y, area_w, dx, dy = _SHEETS[prefix]
+        if dye_layer:
+            if prefix != "S" or not self.items[qualified_id]["data"].get("CanBeDyed"):
+                return None
+            dx += _SHIRT_DYE_OFFSET
+        return self._icon_at(sheet, index, w, h, step_x, step_y, area_w, dx, dy)
+
+    def sheet_exists(self, sheet):
+        return self._sheet_size(sheet) is not None
+
+    # ------------------------------------------------------------------ farmer look
+    def hairstyles(self, covered=False):
+        """{hair index: icon or None} for every hairstyle a farmer can pick.
+
+        0-55 are on hairstyles.png (8 per row, 96 px per row of styles). Data/HairData.json
+        adds the others: "texture/tile x/tile y/unique left sprite/covered index/bald", tiles
+        being 16 px. Negative ids there are "covered" versions, drawn under some hats
+        instead of the style that names them: listed only with covered=True.
+        Icons also say whether the style uses the bald body ("bald") and its covered
+        version ("covered", -1 for none).
+        """
+        result = {}
+        for i in range(56):
+            icon = self._icon_at(HAIR_SHEET, i, 16, 32, 16, 96)
+            result[i] = icon and {**icon, "bald": False, "covered": -1}
+        for key, raw in (_read_json(self.data_dir / "Data" / "HairData.json") or {}).items():
+            fields = raw.split("/") if isinstance(raw, str) else []
+            if not str(key).lstrip("-").isdigit() or len(fields) < 3 or (int(key) < 0 and not covered):
+                continue
+            sheet = "Characters/Farmer/" + fields[0].replace("\\", "/").split("/")[-1]
+            size = self._sheet_size(sheet)
+            try:
+                tile_x, tile_y = int(fields[1]), int(fields[2])
+                covered_index = int(fields[4]) if len(fields) > 4 else -1
+            except ValueError:
+                continue
+            result[int(key)] = None if size is None else {
+                "sheet": sheet, "x": tile_x * 16, "y": tile_y * 16, "w": 16, "h": 32,
+                "sheet_w": size[0], "sheet_h": size[1],
+                "bald": len(fields) > 5 and fields[5].strip().lower() == "true",
+                "covered": covered_index}
+        return dict(sorted(result.items()))
+
+    def accessory_icon(self, index):
+        return self._icon_at(ACCESSORY_SHEET, index, 16, 16, 16, 32)
+
+    def skin_icon(self, index):
+        """One pixel of the skin color sheet: the middle shade of that skin."""
+        return self._icon_at(SKIN_SHEET, index * 3 + 1, 1, 1)
+
+    def clothing(self, prefix, lang):
+        """[(qualified id, display name)] of every shirt (S), pants (P), hat (H) or boots (B)."""
+        names = {q: self.display_name(q, lang) for q in self.items if q.startswith(prefix + ":")}
+        counts = {}
+        for name in names.values():
+            counts[name] = counts.get(name, 0) + 1
+        # Different items can share a name (several plain "Shirt"s): the id tells them apart
+        result = [(q, f"{name} ({q.split(':', 1)[1]})" if counts[name] > 1 else name) for q, name in names.items()]
+        result.sort(key=lambda pair: (self._fold(pair[1]), pair[0]))
+        return result
 
     def sheet_path(self, sheet):
         """File of a sprite sheet named by icon(), or None if it isn't a sheet of this data."""
@@ -367,7 +465,7 @@ class GameData:
         return result[:limit]
 
     # ------------------------------------------------------------------ recipes
-    # Data/CookingRecipes.json and Data/CraftingRecipes.json: recipe name → "/"-separated
+    # Data/CookingRecipes.json and Data/CraftingRecipes.json: recipe name > "/"-separated
     # fields. The output item is field 2 ("id" or "id count", sometimes qualified like
     # "(BC)238"); crafting recipes say in field 3 whether it's a big craftable. An
     # optional display name comes last (field 4 for cooking, 5 for crafting);

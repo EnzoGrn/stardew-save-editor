@@ -34,6 +34,7 @@ To use another folder, run `python run.py --saves "D:\MySaves"`, or pick it from
 - Skills, with an option to trigger the level-up screen (recipes and professions) the next time the farmer sleeps
 - Inventory: item quantity and quality, item names in your language, and with game data: item icons, adding objects and machines (search by name), removing items, moving them by drag and drop, tool upgrade levels (basic to iridium)
 - Recipes: learn or forget cooking and crafting recipes, all at once or one by one (with game data; without it, known recipes can be removed)
+- Appearance: gender, skin, hairstyle, accessory, hair and eye colors, and the clothes worn (shirt, pants, hat, boots) with their dye colors; with game data, every choice shows the game's sprite, tinted like in the game, next to a full preview of the farmer drawn from the game's own sprites
 - Friendship with each villager
 - Automatic backup before every change, manual backups, restore
 
@@ -41,7 +42,7 @@ Backups are stored next to the `Saves` folder, in `SaveManagerBackups/<save>/`. 
 
 ## Game data
 
-Some features need the game's own data: item names and icons, adding items, tool upgrades, the full recipe list; appearance and the museum later. The app reads it from your copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack) (MIT licence). Without it, everything else keeps working.
+Some features need the game's own data: item names and icons, adding items, tool upgrades, the full recipe list, changing clothes and the appearance previews; the museum later. The app reads it from your copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack) (MIT licence). Without it, everything else keeps working.
 
 On the home page, under **Game data**:
 
@@ -80,6 +81,7 @@ sdvsave/            save logic, with no dependency on the UI
   gamedata.py       item catalogue and translated names, from the unpacked game
   gamefolder.py     finding the game install, state of its unpacked data
   items.py          building new items and upgrading tools, in the game's own format
+  appearance.py     a farmer's look: colors and worn clothes, in the game's own format
 web/                Flask UI
   app.py            routes
   i18n.py           translation; `python -m web.i18n` checks the language files
@@ -89,6 +91,7 @@ web/                Flask UI
   unpacker.py       one-click game data preparation, in the background
   templates/        HTML pages
   static/style.css
+  static/farmer.js  full farmer preview, layering the game's sprites like the game does
 tests/              automated tests: `pip install pytest`, then `python -m pytest`
 ```
 

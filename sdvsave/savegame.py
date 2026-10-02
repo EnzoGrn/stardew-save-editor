@@ -10,7 +10,7 @@ from pathlib import Path
 
 from lxml import etree
 
-from . import items, xmlio
+from . import appearance as look, items, xmlio
 from .constants import (
     SKILLS, XP_FOR_LEVEL, QUALITIES, POINTS_PER_HEART, MAX_FRIENDSHIP_POINTS,
     BACKPACK_SIZES, XSI,
@@ -292,7 +292,7 @@ class SaveGame:
                     _set(item.find("value/Friendship"), "Points", value)
 
     # ------------------------------------------------------------------ recipes
-    # <cookingRecipes> and <craftingRecipes>: recipe name → times made. Cooking keeps
+    # <cookingRecipes> and <craftingRecipes>: recipe name > times made. Cooking keeps
     # 0 there (dishes cooked are counted in <recipesCooked>, by item, left untouched);
     # crafting counts how many times the recipe was crafted.
     _RECIPE_TAGS = {"cooking": "cookingRecipes", "crafting": "craftingRecipes"}
@@ -412,3 +412,120 @@ class SaveGame:
             slots.replace(a, placeholder)
             slots.replace(b, a)
             slots.replace(placeholder, b)
+
+    # ------------------------------------------------------------------ appearance
+    # Worn item tags > keys used by the UI
+    _WORN = {"shirt": "shirtItem", "pants": "pantsItem", "hat": "hat", "boots": "boots"}
+
+    def appearance(self, uid):
+        """A player's look: body, colors and worn clothes (see appearance.py)."""
+        farmer = self._player(uid)
+        worn = {}
+        for key, tag in self._WORN.items():
+            element = farmer.find(tag)
+            if element is None or items.is_empty(element):
+                worn[key] = None
+                continue
+            worn[key] = {"item_id": element.findtext("itemId") or "",
+                         "name": element.findtext("name") or "?"}
+            if key in ("shirt", "pants"):
+                worn[key].update(color=look.read_color(element.find("clothesColor")),
+                                 dyeable=element.findtext("dyeable") == "true",
+                                 sprite=_int(element, "indexInTileSheet"))
+            elif key == "hat":
+                worn[key].update(hair_draw=_int(element, "hairDrawType"),
+                                 ignore_offset=element.findtext("ignoreHairstyleOffset") == "true")
+            else:
+                worn[key]["color_index"] = _int(element, "indexInColorSheet")
+        return {
+            "gender": farmer.findtext("Gender") or farmer.findtext("gender") or "Male",
+            "skin": _int(farmer, "skin"),
+            "hair": _int(farmer, "hair"),
+            "accessory": _int(farmer, "accessory", -1),
+            "hair_color": look.read_color(farmer.find("hairstyleColor")) or "#000000",
+            "eye_color": look.read_color(farmer.find("newEyeColor")) or "#000000",
+            "pants_color": look.read_color(farmer.find("pantsColor")) or "#000000",
+            "worn": worn,
+        }
+
+    def set_appearance(self, uid, values, gamedata=None):
+        """values: the fields to change, others are left as they are.
+
+        gender ("Male"/"Female"), skin, hair, accessory (-1 = none),
+        hair_color, eye_color ("#rrggbb"),
+        shirt, pants: qualified id of the item to wear instead ("" = keep it),
+        shirt_color, pants_color: dye color, used when the item can be dyed,
+        hat, boots: qualified id ("" = take off).
+        Clothes come from the game data, needed to change them.
+        """
+        current = self.appearance(uid)
+        changes = {}  # save tag > new text
+        if "gender" in values:
+            if values["gender"] not in look.GENDERS:
+                raise SaveError("error.bad_choice", field=T("field.gender"), value=values["gender"])
+            changes["gender"] = changes["Gender"] = values["gender"]
+        if "skin" in values:
+            changes["skin"] = bounded(values["skin"], 0, look.SKIN_COUNT - 1, "field.skin")
+        if "hair" in values:
+            hair = bounded(values["hair"], 0, 9999, "field.hair")
+            known = gamedata.hairstyles() if gamedata else look.DEFAULT_HAIRS
+            if hair not in known and hair != current["hair"]:
+                raise SaveError("error.bad_choice", field=T("field.hair"), value=hair)
+            changes["hair"] = hair
+        if "accessory" in values:
+            changes["accessory"] = bounded(values["accessory"], -1, look.ACCESSORY_COUNT - 1, "field.accessory")
+        colors = {}  # color tag > (r, g, b)
+        for key, tag in (("hair_color", "hairstyleColor"), ("eye_color", "newEyeColor")):
+            if key in values:
+                colors[tag] = look.parse_color(values[key], f"field.{key}")
+
+        # Worn items: (tag, new element or None to take off), built once then copied
+        worn = []
+        dyes = {}  # tag of a worn item kept > new dye color
+        for key, prefix in (("shirt", "S"), ("pants", "P")):
+            tag = self._WORN[key]
+            color = look.parse_color(values[f"{key}_color"], f"field.{key}_color") \
+                if values.get(f"{key}_color") else None
+            if values.get(key):
+                if not values[key].startswith(prefix + ":"):
+                    raise SaveError("error.unknown_clothing", item=values[key])
+                if gamedata is None:
+                    raise SaveError("error.needs_game_data")
+                worn.append((tag, look.new_clothing(gamedata, values[key], color)))
+            elif color and current["worn"][key] and current["worn"][key]["dyeable"]:
+                dyes[tag] = color
+            elif color and key == "pants" and current["worn"][key] is None:
+                colors["pantsColor"] = color  # default pants: only the farmer's color
+        for key, build in (("hat", look.new_hat), ("boots", look.new_boots)):
+            if key not in values:
+                continue
+            wanted = values[key] or None
+            now = current["worn"][key]
+            prefix = "H" if key == "hat" else "B"
+            if wanted is None:
+                if now is not None:
+                    worn.append((self._WORN[key], None))
+            elif now is None or f"{prefix}:{now['item_id']}" != wanted:
+                if gamedata is None:
+                    raise SaveError("error.needs_game_data")
+                worn.append((self._WORN[key], build(gamedata, wanted)))
+
+        for farmer in self._copies(uid):
+            for tag, value in changes.items():
+                if farmer.find(tag) is not None:  # older saves may lack one of the gender tags
+                    _set(farmer, tag, value)
+            for tag, rgb in colors.items():
+                look.write_color(farmer.find(tag), rgb)
+            for tag, element in worn:
+                look.place(farmer, tag, items.copy_for(element) if element is not None else None)
+                if tag == "boots":
+                    _set(farmer, "shoes", element.findtext("indexInColorSheet")
+                         if element is not None else look.NO_BOOTS_SHOE_COLOR)
+            for tag, rgb in dyes.items():
+                look.write_color(farmer.find(tag).find("clothesColor"), rgb)
+            # The pants color drawn on the farmer follows the pants worn
+            pants = farmer.find("pantsItem")
+            pants_changed = "pantsItem" in dyes or any(tag == "pantsItem" for tag, _ in worn)
+            if pants_changed and pants is not None and farmer.find("pantsColor") is not None:
+                look.write_color(farmer.find("pantsColor"),
+                                 look.parse_color(look.read_color(pants.find("clothesColor")), "field.pants_color"))

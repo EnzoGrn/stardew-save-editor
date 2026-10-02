@@ -81,7 +81,7 @@ def empty_slot():
 
 
 def set_tool_level(element, gamedata, level):
-    """Upgrades or downgrades a tool in place (Axe → Gold Axe…), from the game data."""
+    """Upgrades or downgrades a tool in place (Axe > Gold Axe…), from the game data."""
     class_name = element.get(XSI + "type")
     levels = gamedata.tool_levels(class_name)
     if level not in levels:

@@ -59,6 +59,87 @@
 </form>
 </section>
 
+<section id="appearance">
+<h2>{{ t('look.title') }}</h2>
+{% if not has_game_data %}
+<p class="note standalone">{{ t('look.no_game_data') }} <a href="{{ url_for('index') }}#game-data">{{ t('inventory.enable_game_data') }}</a></p>
+{% endif %}
+<form method="post" action="{{ url_for('set_appearance', save_id=farm.id, uid=p.uid) }}" class="look">
+<div class="look-layout">
+  {% if look.can_draw_farmer %}
+  <figure class="farmer-preview">
+    <canvas class="farmer-canvas" width="160" height="288" data-sheets='{{ look.sheets|tojson }}'
+            role="img" aria-label="{{ t('look.preview', name=p.name) }}"></canvas>
+  </figure>
+  {% endif %}
+  <div class="look-fields">
+  <div class="look-grid">
+    <div class="look-card">
+      <label><span class="field-label">{{ t('field.gender') }}</span>
+        <select name="gender">{% for g in look.genders %}<option value="{{ g }}" {% if g == look.gender %}selected{% endif %}>{{ t('gender.' ~ g) }}</option>{% endfor %}</select></label>
+    </div>
+    <div class="look-card">
+      <span class="look-preview" aria-hidden="true"><span class="sprite" data-preview-of="skin"></span></span>
+      <label><span class="field-label">{{ t('field.skin') }}</span>
+        <select name="skin" data-preview="skin">{% for o in look.skins %}<option value="{{ o.value }}" {% if o.icon %}data-option-icon="{{ o.icon }}"{% endif %} {% if o.value == look.skin %}selected{% endif %}>{{ t('look.number', n=o.value + 1) }}</option>{% endfor %}</select></label>
+    </div>
+    <div class="look-card">
+      <span class="look-preview" aria-hidden="true"><span class="sprite" data-preview-of="hair" data-tint-from="hair_color"></span></span>
+      <label><span class="field-label">{{ t('field.hair') }}</span>
+        <select name="hair" data-preview="hair">{% for o in look.hairs %}<option value="{{ o.value }}" {% if o.icon %}data-option-icon="{{ o.icon }}"{% endif %} {% if o.render %}data-render='{{ o.render|tojson }}'{% endif %} {% if o.value == look.hair %}selected{% endif %}>{{ t('look.number', n=loop.index) }}</option>{% endfor %}</select></label>
+      <label class="look-color"><span class="field-label">{{ t('field.hair_color') }}</span>
+        <input type="color" name="hair_color" value="{{ look.hair_color }}"></label>
+    </div>
+    <div class="look-card">
+      <span class="look-preview" aria-hidden="true"><span class="eye-swatch" data-swatch-of="eye_color"></span></span>
+      <label class="look-color"><span class="field-label">{{ t('field.eye_color') }}</span>
+        <input type="color" name="eye_color" value="{{ look.eye_color }}"></label>
+    </div>
+    <div class="look-card">
+      <span class="look-preview" aria-hidden="true"><span class="sprite" data-preview-of="accessory" data-tint-from="hair_color"></span></span>
+      <label><span class="field-label">{{ t('field.accessory') }}</span>
+        <select name="accessory" data-preview="accessory">{% for o in look.accessories %}<option value="{{ o.value }}" {% if o.icon %}data-option-icon="{{ o.icon }}"{% endif %} {% if o.tinted %}data-tinted{% endif %} {% if o.value == look.accessory %}selected{% endif %}>{{ t('look.none') if o.value < 0 else t('look.number', n=o.value + 1) }}</option>{% endfor %}</select></label>
+    </div>
+  </div>
+
+  <h3>{{ t('look.clothes') }}</h3>
+  <div class="look-grid">
+  {% for key in ('shirt', 'pants', 'hat', 'boots') %}
+    {% set c = look.clothes[key] %}
+    <div class="look-card">
+      <span class="look-preview" aria-hidden="true">
+        <span class="sprite" data-preview-of="{{ key }}" {% if key == 'pants' %}data-tint-from="pants_color"{% endif %}></span>
+        {% if key == 'shirt' %}<span class="sprite dye-layer" data-preview-of="shirt" data-layer="dye" data-tint-from="shirt_color"></span>{% endif %}
+      </span>
+      <label><span class="field-label">{{ t('field.' ~ key) }}</span>
+      {% if c.options %}
+        <select name="{{ key }}" data-preview="{{ key }}">
+          {% if key in ('hat', 'boots') %}<option value="" {% if not c.selected %}selected{% endif %}>{{ t('look.none') }}</option>
+          {% elif not c.selected %}<option value="" selected>{{ t('look.default_clothes') }}</option>{% endif %}
+          {% for o in c.options %}<option value="{{ o.value }}" {% if o.icon %}data-option-icon="{{ o.icon }}"{% endif %} data-render='{{ o.render|tojson }}' {% if o.dye_icon %}data-option-dye="{{ o.dye_icon }}"{% endif %} {% if o.dyeable %}data-dyeable{% endif %} {% if o.color %}data-color="{{ o.color }}"{% endif %} {% if o.value == c.selected %}selected{% endif %}>{{ o.label }}</option>{% endfor %}
+        </select>
+      {% else %}
+        <span class="look-worn">{{ c.worn.name if c.worn else (t('look.none') if key in ('hat', 'boots') else t('look.default_clothes')) }}</span>
+      {% endif %}
+      </label>
+      {% if key in ('shirt', 'pants') %}
+      {% set color = c.worn.color if c.worn else (look.pants_color if key == 'pants' else '#ffffff') %}
+      <label class="look-color"><span class="field-label">{{ t('field.' ~ key ~ '_color') }}</span>
+        <input type="color" name="{{ key }}_color" value="{{ color }}" data-dye-for="{{ key }}"
+               {% if c.worn and not c.worn.dyeable %}disabled{% endif %}
+               {% if key == 'shirt' and not c.worn %}disabled{% endif %}></label>
+      {% endif %}
+    </div>
+  {% endfor %}
+  </div>
+  </div>
+</div>
+  <p class="note standalone">{{ t('look.clothes_note') }}</p>
+  <button>{{ t('look.save') }}</button>
+</form>
+{% if look.can_draw_farmer %}<script src="{{ url_for('static', filename='farmer.js') }}" defer></script>{% endif %}
+</section>
+
 <section id="inventory">
 <h2>{{ t('inventory.title') }}</h2>
 {% if not has_game_data %}
@@ -202,6 +283,61 @@
 // Item icons: the sprite position comes in data-icon (kept out of the style attribute so the
 // template stays plain HTML for editors)
 document.querySelectorAll('[data-icon]').forEach(el => { el.style.cssText = el.dataset.icon; });
+
+// Appearance: each choice shows its sprite (from data-option-icon on the selected option);
+// hair, facial hair and pants take their color the way the game tints them (multiply)
+const look = document.querySelector('form.look');
+if (look) {
+  const field = name => look.querySelector(`[name="${name}"]`);
+  const tint = (el, color) => {
+    const image = el.style.backgroundImage;
+    if (!color || !image) {
+      el.style.backgroundColor = ''; el.style.backgroundBlendMode = ''; el.style.maskImage = '';
+      el.style.webkitMaskImage = '';
+      return;
+    }
+    // The sprite is multiplied by the color, then cut back to its own shape
+    el.style.backgroundColor = color;
+    el.style.backgroundBlendMode = 'multiply';
+    for (const prefix of ['mask', 'webkitMask']) {
+      el.style[`${prefix}Image`] = image;
+      el.style[`${prefix}Position`] = el.style.backgroundPosition;
+      el.style[`${prefix}Size`] = el.style.backgroundSize;
+      el.style[`${prefix}Repeat`] = 'no-repeat';
+    }
+  };
+  const draw = () => {
+    look.querySelectorAll('[data-preview-of]').forEach(el => {
+      const select = field(el.dataset.previewOf);
+      const option = select?.selectedOptions?.[0];
+      const css = option ? (el.dataset.layer === 'dye' ? option.dataset.optionDye : option.dataset.optionIcon) : '';
+      el.style.cssText = css || '';
+      el.hidden = !css;
+      const tintedOption = el.dataset.previewOf !== 'accessory' || option?.hasAttribute('data-tinted');
+      const from = el.dataset.tintFrom && field(el.dataset.tintFrom);
+      // A field that can't be changed (clothes that can't be dyed) keeps the item's own color
+      if (css && from && tintedOption) tint(el, from.disabled ? option.dataset.color : from.value);
+    });
+    look.querySelectorAll('[data-swatch-of]').forEach(el => {
+      el.style.backgroundColor = field(el.dataset.swatchOf).value;
+    });
+  };
+  // Picking other clothes: the dye color starts at that item's own color, and only dyeable
+  // items can take one
+  look.querySelectorAll('[data-dye-for]').forEach(input => {
+    const select = field(input.dataset.dyeFor);
+    if (!select || select.tagName !== 'SELECT') return;
+    select.addEventListener('change', () => {
+      const option = select.selectedOptions[0];
+      input.disabled = !option.value ? input.dataset.dyeFor === 'shirt' : !option.hasAttribute('data-dyeable');
+      if (option.dataset.color) input.value = option.dataset.color;
+      draw();
+    });
+  });
+  look.addEventListener('input', draw);
+  look.addEventListener('change', draw);
+  draw();
+}
 
 // Drag an item onto another slot to move it there (swapping with what is there)
 const grid = document.querySelector('.inventory');

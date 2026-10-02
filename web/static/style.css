@@ -243,3 +243,26 @@ h3 small { font: 400 .9rem var(--body); margin-left: .4rem; }
 .recipe-list label:hover { background: var(--parchment-deep); }
 .recipe-list input { flex: none; width: 1.05rem; height: 1.05rem; padding: 0; accent-color: var(--leaf); }
 .icon-box { flex: none; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+
+/* Appearance: one card per choice, with the game's sprite next to it */
+.look-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 1rem 1.5rem; margin-bottom: 1rem; }
+.look-card { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: .3rem .9rem;
+  padding: .6rem .8rem; background: #fffaf0; border: 2px solid var(--parchment-deep); }
+.look-card > label { grid-column: 2; display: grid; gap: .15rem; }
+.look-card > label:only-child { grid-column: 1 / -1; }
+.look-card select { width: 100%; }
+.look-preview { grid-row: span 2; position: relative; width: 48px; height: 64px;
+  display: flex; align-items: center; justify-content: center; }
+.look-preview .sprite[hidden] { display: none; }
+.look-preview .dye-layer { position: absolute; }
+.look-color input[type="color"] { width: 3.2rem; height: 2rem; padding: .1rem; cursor: pointer; }
+.look-color input[type="color"]:disabled { opacity: .45; cursor: not-allowed; }
+.eye-swatch { width: 24px; height: 24px; border: 2px solid var(--wood-dark); border-radius: 50%; }
+.look-worn { font-weight: 400; }
+.look-layout { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
+.look-fields { flex: 1 1 30rem; min-width: 0; }
+.farmer-preview { flex: none; margin: 0; position: sticky; top: 1rem; width: 11.5rem; text-align: center; }
+.farmer-canvas { display: block; margin: 0 auto .4rem; image-rendering: pixelated;
+  background: radial-gradient(ellipse at 50% 92%, rgba(77, 44, 20, .25) 0 18%, transparent 19%), #fffaf0;
+  border: 4px solid var(--wood-dark); box-shadow: inset 0 0 0 2px var(--parchment-deep); }
+.farmer-preview figcaption { font-size: .8rem; line-height: 1.3; }

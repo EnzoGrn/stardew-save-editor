@@ -8,7 +8,7 @@ XSI = "{http://www.w3.org/2001/XMLSchema-instance}"
 
 # Order of the <experiencePoints> array in the save
 SKILLS = [
-    # (index, level tag, identifier → translation key "skill.<id>")
+    # (index, level tag, identifier > translation key "skill.<id>")
     (0, "farmingLevel", "farming"),
     (1, "fishingLevel", "fishing"),
     (2, "foragingLevel", "foraging"),
