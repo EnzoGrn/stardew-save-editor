@@ -214,7 +214,7 @@
   "game.progress": "Preparing game data",
   "game.prepare": "Prepare game data",
   "game.prepare_again": "Prepare game data again",
-  "game.prepare_confirm": "The app will download StardewXnbHack (about 30 MB) from GitHub, then unpack the game's files into a \"Content (unpacked)\" folder in {path}. It takes a few minutes. On Windows, a window opens: press a key in it when it says Done. Continue?",
+  "game.prepare_confirm": "The app will download StardewXnbHack and the parts of SMAPI it needs (about 70 MB, once) from GitHub, then unpack the game's files into a \"Content (unpacked)\" folder in {path}. It takes a few minutes. On Windows, a window opens: press a key in it when it says Done. Continue?",
   "game.pick": "Choose the game folder…",
   "game.manual": "Type the game folder path instead",
   "game.manual_help": "The folder that contains \"Stardew Valley.dll\". In Steam: right-click the game, then Manage > Browse local files.",

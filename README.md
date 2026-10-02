@@ -45,11 +45,13 @@ Some features need the game's own data: item names in your language now, and add
 On the home page, under **Game data**:
 
 1. Check the game folder. The app looks for Steam, GOG and Game Pass installs; pick it yourself if it isn't found (the folder containing `Stardew Valley.dll`).
-2. Click **Prepare game data**. The app downloads StardewXnbHack from its GitHub releases (about 30 MB, kept in the app's settings folder for next time), runs it in the game folder, and shows the progress. On Windows the unpacker opens its own window: press a key in it when it says *Done*.
+2. Click **Prepare game data**. The app downloads StardewXnbHack and the few SMAPI files it needs from their GitHub releases (about 70 MB, kept in the app's settings folder for next time), runs it in the game folder, and shows the progress. On Windows the unpacker opens its own window: press a key in it when it says *Done*.
+
+StardewXnbHack normally requires [SMAPI](https://smapi.io/), the mod loader. You don't need to install it: the app puts SMAPI's toolkit files in the game folder for the run only, then removes them. If SMAPI is already installed, the app uses it and leaves it untouched.
 
 The data is written to `Content (unpacked)` in the game folder. After a game update, the app notices and offers to prepare it again.
 
-To do it by hand instead: download StardewXnbHack for your system from its [releases page](https://github.com/Pathoschild/StardewXnbHack/releases), unzip it into the game folder, run `StardewXnbHack.exe` (Windows) or `./StardewXnbHack` (macOS, Linux), then delete it once it's done.
+To do it by hand instead: install [SMAPI](https://smapi.io/), download StardewXnbHack for your system from its [releases page](https://github.com/Pathoschild/StardewXnbHack/releases), unzip it into the game folder, run `StardewXnbHack.exe` (Windows) or `./StardewXnbHack` (macOS, Linux), then delete it once it's done.
 
 ## Languages
 

@@ -66,20 +66,50 @@ def test_unpack_reports_a_tool_that_writes_nothing(game, tmp_path):
     assert "must be placed" in error.value.params["detail"]
 
 
-def test_job_runs_in_background_with_a_cached_tool(game, tmp_path, monkeypatch):
-    tools = tmp_path / "tools"
-    cached = tools / f"StardewXnbHack-{unpacker.PINNED_VERSION}" / "StardewXnbHack"
-    cached.parent.mkdir(parents=True)
-    fake_tool(tmp_path, WORKING_TOOL).rename(cached)
-    # No network: the pinned version is used, and it is already downloaded
-    monkeypatch.setattr(unpacker.Job, "_latest_release",
-                        staticmethod(lambda platform: (_ for _ in ()).throw(OSError("offline"))))
+TOOLKIT_CHECKING_TOOL = """
+    import os, sys
+    os.makedirs("Content (unpacked)/Data", exist_ok=True)
+    # Records whether SMAPI's toolkit was in place during the run, like the real tool needs
+    with open("Content (unpacked)/Data/Objects.json", "w") as f:
+        f.write(str(os.path.isfile("smapi-internal/SMAPI.Toolkit.dll")))
+    print("Press any key to exit.", flush=True)
+    sys.stdin.read(1)
+"""
 
+
+def cached_tools(tmp_path, body):
+    """A tools folder with StardewXnbHack and the SMAPI toolkit already downloaded."""
+    tools = tmp_path / "tools"
+    exe = tools / f"StardewXnbHack-{unpacker.XNBHACK_VERSION}" / "StardewXnbHack"
+    exe.parent.mkdir(parents=True)
+    fake_tool(tmp_path, body).rename(exe)
+    toolkit = tools / f"SMAPI-{unpacker.SMAPI_VERSION}" / "smapi-internal"
+    toolkit.mkdir(parents=True)
+    (toolkit / "SMAPI.Toolkit.dll").write_bytes(b"dll")
+    return tools
+
+
+def run_job(game, tools):
     job = unpacker.Job()
     assert job.start(game, tools)
     assert not job.start(game, tools)  # one job at a time
     deadline = time.time() + 30
     while job.running() and time.time() < deadline:
         time.sleep(0.1)
-    assert job.state()["step"] == unpacker.DONE
-    assert job.state()["percent"] == 100
+    return job.state()
+
+
+def test_job_provides_smapi_toolkit_for_the_run_only(game, tmp_path):
+    state = run_job(game, cached_tools(tmp_path, TOOLKIT_CHECKING_TOOL))
+    assert state["step"] == unpacker.DONE and state["percent"] == 100
+    assert (game / "Content (unpacked)" / "Data" / "Objects.json").read_text() == "True"
+    assert not (game / "smapi-internal").exists()  # removed after the run
+    assert not (game / "StardewXnbHack").exists()
+
+
+def test_job_leaves_an_existing_smapi_install_alone(game, tmp_path):
+    (game / "smapi-internal").mkdir()
+    (game / "smapi-internal" / "SMAPI.Toolkit.dll").write_bytes(b"installed by SMAPI")
+    state = run_job(game, cached_tools(tmp_path, TOOLKIT_CHECKING_TOOL))
+    assert state["step"] == unpacker.DONE
+    assert (game / "smapi-internal" / "SMAPI.Toolkit.dll").read_bytes() == b"installed by SMAPI"

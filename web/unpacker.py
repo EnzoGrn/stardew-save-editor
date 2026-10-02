@@ -7,6 +7,10 @@ reports progress so the page can show it.
 How StardewXnbHack behaves, which shapes this module:
   - it must sit in the game folder: it loads the game's own DLLs from there,
     so we copy it in for the run and remove it afterwards;
+  - it needs SMAPI's toolkit DLLs (normally installed with SMAPI, the mod
+    loader, in "<game folder>/smapi-internal"). Players without SMAPI don't
+    have them, so we take them from the official SMAPI release, put them in
+    place for the run only, and leave an existing SMAPI install untouched;
   - it writes everything to "<game folder>/Content (unpacked)";
   - it waits for a key press before closing. On Windows it runs in its own
     console window (its progress bar needs a real console) and the user
@@ -16,7 +20,6 @@ How StardewXnbHack behaves, which shapes this module:
 Progress is measured the same way everywhere: files written to the unpacked
 folder since the start, out of the number of packed files in Content.
 """
-import json
 import os
 import re
 import shutil
@@ -26,15 +29,20 @@ import threading
 import time
 import urllib.request
 import zipfile
+from io import BytesIO
 from pathlib import Path
 
 from sdvsave import gamefolder
 
-RELEASES_API = "https://api.github.com/repos/Pathoschild/StardewXnbHack/releases/latest"
-# Used when the GitHub API can't be reached (rate limit, proxy…)
-PINNED_VERSION = "1.1.2"
-PINNED_URL = ("https://github.com/Pathoschild/StardewXnbHack/releases/download/"
-              "{v}/StardewXnbHack-{v}-for-{platform}.zip")
+# A known-good pair: StardewXnbHack 1.1.2 is built against SMAPI 4.1.4. Both are
+# pinned rather than "latest", so an update to one can't break the other.
+XNBHACK_VERSION = "1.1.2"
+XNBHACK_URL = ("https://github.com/Pathoschild/StardewXnbHack/releases/download/"
+               "{v}/StardewXnbHack-{v}-for-{platform}.zip")
+SMAPI_VERSION = "4.1.4"
+SMAPI_URL = ("https://github.com/Pathoschild/SMAPI/releases/download/"
+             "{v}/SMAPI-{v}-installer.zip")
+SMAPI_FOLDER = "smapi-internal"
 TIMEOUT = 30 * 60  # seconds; a full unpack takes about a minute
 
 # Terminal control sequences (window title, colours, cursor moves) in the tool's output
@@ -95,7 +103,8 @@ class Job:
     def _run(self, game_dir, tools_dir, on_done):
         try:
             exe = self._get_tool(tools_dir)
-            self._unpack(exe, game_dir)
+            toolkit = None if (game_dir / SMAPI_FOLDER).is_dir() else self._get_toolkit(tools_dir)
+            self._unpack(exe, game_dir, toolkit)
             self._set(step=DONE, percent=100)
             if on_done:
                 on_done()
@@ -104,24 +113,13 @@ class Job:
         except Exception as exc:  # never leave the page waiting on a dead job
             self._set(step=FAILED, error="error.unpack_unexpected", params={"detail": str(exc)})
 
-    def _get_tool(self, tools_dir):
-        """Path to the StardewXnbHack executable, downloaded once and kept."""
-        platform = _platform()
-        try:
-            version, url = self._latest_release(platform)
-        except Exception:
-            version, url = PINNED_VERSION, PINNED_URL.format(v=PINNED_VERSION, platform=platform)
-
-        folder = tools_dir / f"StardewXnbHack-{version}"
-        exe = folder / _exe_name()
-        if exe.is_file():
-            return exe
-
-        folder.mkdir(parents=True, exist_ok=True)
-        archive = folder / "download.zip"
+    def _download(self, url, target):
+        """Downloads a file, reporting progress; the file only appears once complete."""
+        self._set(step=DOWNLOADING, percent=0)
+        partial = target.with_name(target.name + ".part")
         try:
             request = urllib.request.Request(url, headers={"User-Agent": "stardew-save-editor"})
-            with urllib.request.urlopen(request, timeout=60) as response, open(archive, "wb") as out:
+            with urllib.request.urlopen(request, timeout=60) as response, open(partial, "wb") as out:
                 total = int(response.headers.get("Content-Length") or 0)
                 done = 0
                 while chunk := response.read(256 * 1024):
@@ -129,10 +127,20 @@ class Job:
                     done += len(chunk)
                     if total:
                         self._set(percent=int(done * 100 / total))
+            partial.replace(target)
         except OSError as exc:
-            archive.unlink(missing_ok=True)
+            partial.unlink(missing_ok=True)
             raise UnpackError("error.unpack_download", detail=str(exc))
 
+    def _get_tool(self, tools_dir):
+        """Path to the StardewXnbHack executable, downloaded once and kept."""
+        folder = tools_dir / f"StardewXnbHack-{XNBHACK_VERSION}"
+        exe = folder / _exe_name()
+        if exe.is_file():
+            return exe
+        folder.mkdir(parents=True, exist_ok=True)
+        archive = folder / "download.zip"
+        self._download(XNBHACK_URL.format(v=XNBHACK_VERSION, platform=_platform()), archive)
         self._set(step=EXTRACTING, percent=0)
         try:
             with zipfile.ZipFile(archive) as zf:
@@ -147,23 +155,55 @@ class Job:
         exe.chmod(0o755)
         return exe
 
-    @staticmethod
-    def _latest_release(platform):
-        request = urllib.request.Request(RELEASES_API, headers={
-            "User-Agent": "stardew-save-editor", "Accept": "application/vnd.github+json"})
-        with urllib.request.urlopen(request, timeout=15) as response:
-            release = json.load(response)
-        suffix = f"-for-{platform}.zip".lower()
-        asset = next(a for a in release["assets"] if a["name"].lower().endswith(suffix))
-        return release["tag_name"], asset["browser_download_url"]
+    def _get_toolkit(self, tools_dir):
+        """Folder holding SMAPI's toolkit DLLs, downloaded once and kept.
 
-    def _unpack(self, exe, game_dir):
+        The SMAPI installer keeps them in "internal/<platform>/install.dat", a
+        zip whose "smapi-internal/" folder is what SMAPI installs in the game.
+        Only the DLLs are kept: nothing else of SMAPI is used.
+        """
+        folder = tools_dir / f"SMAPI-{SMAPI_VERSION}" / SMAPI_FOLDER
+        if folder.is_dir() and any(folder.glob("SMAPI.Toolkit*.dll")):
+            return folder
+        folder.mkdir(parents=True, exist_ok=True)
+        archive = folder.parent / "download.zip"
+        self._download(SMAPI_URL.format(v=SMAPI_VERSION), archive)
+        self._set(step=EXTRACTING, percent=0)
+        platform = {"Windows": "windows", "macOS": "macOS", "Linux": "linux"}[_platform()]
+        try:
+            with zipfile.ZipFile(archive) as installer:
+                inner = next(n for n in installer.namelist()
+                             if n.endswith(f"/internal/{platform}/install.dat"))
+                with zipfile.ZipFile(BytesIO(installer.read(inner))) as install:
+                    for name in install.namelist():
+                        if name.startswith(SMAPI_FOLDER + "/") and name.endswith(".dll") \
+                                and name.count("/") == 1:
+                            (folder / name.split("/")[1]).write_bytes(install.read(name))
+        except (zipfile.BadZipFile, StopIteration, OSError) as exc:
+            shutil.rmtree(folder, ignore_errors=True)
+            raise UnpackError("error.unpack_download", detail=str(exc))
+        finally:
+            archive.unlink(missing_ok=True)
+        return folder
+
+    def _unpack(self, exe, game_dir, toolkit=None):
+        """Runs StardewXnbHack in the game folder.
+
+        toolkit: folder of SMAPI toolkit DLLs to put in the game folder for the
+        run, or None when SMAPI is already installed there.
+        """
         content = gamefolder.content_dir(game_dir)
         total = sum(1 for _ in content.rglob("*.xnb")) or 1
         target = game_dir / exe.name
+        smapi_copy = game_dir / SMAPI_FOLDER if toolkit else None
         try:
             shutil.copy2(exe, target)
+            if smapi_copy:
+                shutil.copytree(toolkit, smapi_copy)
         except OSError as exc:
+            target.unlink(missing_ok=True)
+            if smapi_copy:
+                shutil.rmtree(smapi_copy, ignore_errors=True)
             raise UnpackError("error.unpack_no_write", path=str(game_dir), detail=str(exc))
 
         started = time.time()
@@ -178,6 +218,9 @@ class Job:
                 target.unlink()
             except OSError:
                 pass  # still locked: harmless, the next run overwrites it
+            if smapi_copy:
+                # Only the copy made for this run: an existing SMAPI is never touched
+                shutil.rmtree(smapi_copy, ignore_errors=True)
 
         objects = gamefolder.unpacked_dir(game_dir) / "Data" / "Objects.json"
         if not objects.is_file() or objects.stat().st_mtime < started - 1:
