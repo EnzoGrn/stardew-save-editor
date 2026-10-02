@@ -1,4 +1,4 @@
-"""Inventory editing: adding, removing, moving items, upgrading tools.
+"""Inventory and recipe editing: items, tool upgrades, known recipes.
 
 Uses a minimal hand-made save (host with an inventory, in both files) and the
 fake game folder from conftest.py.
@@ -32,7 +32,12 @@ INVENTORY = (
 
 def write_save(folder):
     folder.mkdir()
-    farmer = f"<name>Host</name>{INVENTORY}<UniqueMultiplayerID>{HOST_UID}</UniqueMultiplayerID>"
+    farmer = (f"<name>Host</name>{INVENTORY}"
+              "<cookingRecipes><item><key><string>Fried Egg</string></key><value><int>0</int></value></item>"
+              "</cookingRecipes>"
+              "<craftingRecipes><item><key><string>Wood Fence</string></key><value><int>65</int></value></item>"
+              "</craftingRecipes>"
+              f"<UniqueMultiplayerID>{HOST_UID}</UniqueMultiplayerID>")
     (folder / folder.name).write_text(
         f'<SaveGame xmlns:xsi="{XSI_NS}"><player>{farmer}</player><farmhands /></SaveGame>',
         encoding="utf-8")
@@ -78,7 +83,7 @@ def test_search_matches_translated_and_english_names(data):
     assert data.search("diam", "fr") == [("O:72", "Diamant")]
     assert data.search("DIAMOND", "fr") == [("O:72", "Diamant")]
     assert [name for _, name in data.search("mousse", "fr")] == ["Mousse"]
-    assert data.search("ring", "en") == []    # rings have their own class
+    assert data.search("glow", "en") == []    # rings have their own class
     assert data.search("chest", "en") == []   # so do chests
     assert data.search("scare", "en") == [("BC:8", "Scarecrow")]
 
@@ -168,3 +173,36 @@ def test_changes_survive_writing_and_reading(save, data, tmp_path):
     again = SaveGame(tmp_path / "Test_1")
     assert again.inventory(HOST_UID)[4]["name"] == "Scarecrow"
     assert b"<Item xsi:type=\"Object\">" in xmlio.serialize(again.main)  # no stray namespace declarations
+
+
+# ---------------------------------------------------------------------- recipes
+def test_recipe_list_from_game_data(data):
+    cooking = {r["name"]: r for r in data.recipes("cooking", "fr")}
+    assert cooking["Fried Egg"]["display"] == "Œuf au plat"     # the output item's name
+    assert cooking["Fried Egg"]["output"] == "O:194"
+    assert cooking["Strange Bun"]["output"] is None            # output not in this fixture
+    assert cooking["Strange Bun"]["display"] == "Strange Bun"
+    crafting = {r["name"]: r for r in data.recipes("crafting", "fr")}
+    assert crafting["Scarecrow"]["output"] == "BC:8"           # big craftable output
+    assert crafting["Wild Seeds (Sp)"]["display"] == "Graines sauvages (Pr)"  # explicit name wins
+    assert [r["display"] for r in data.recipes("crafting", "fr")] == [
+        "Clôture en bois", "Graines sauvages (Pr)", "Scarecrow"]  # sorted, accents ignored
+
+
+def test_recipes_of_a_player(save):
+    assert save.recipes(HOST_UID) == {"cooking": {"Fried Egg": 0}, "crafting": {"Wood Fence": 65}}
+
+
+def test_set_recipes_adds_and_removes_in_both_files(save):
+    assert save.set_recipes(HOST_UID, "crafting", ["Wood Fence", "Scarecrow"]) == (1, 0)
+    assert save.set_recipes(HOST_UID, "cooking", []) == (0, 1)
+    for farmer in save._copies(HOST_UID):
+        crafting = {i.findtext("key/string"): i.findtext("value/int") for i in farmer.find("craftingRecipes")}
+        assert crafting == {"Wood Fence": "65", "Scarecrow": "0"}  # the existing count is kept
+        assert len(farmer.find("cookingRecipes")) == 0
+
+
+def test_recipes_survive_writing_and_reading(save, tmp_path):
+    save.set_recipes(HOST_UID, "cooking", ["Fried Egg", "Strange Bun"])
+    save.write()
+    assert SaveGame(tmp_path / "Test_1").recipes(HOST_UID)["cooking"] == {"Fried Egg": 0, "Strange Bun": 0}

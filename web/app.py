@@ -121,6 +121,7 @@ def edit(save_id, change, message, reason=backup.AUTO_EDIT, result_as=None):
 
     message   : key of the success message
     result_as : name of the message parameter that receives change's return value
+                (a change returning a dict gives all the message parameters itself)
 
     The backup is only made once the change has been validated, so a
     mistyped field doesn't fill the folder with useless backups.
@@ -130,7 +131,7 @@ def edit(save_id, change, message, reason=backup.AUTO_EDIT, result_as=None):
         result = change(sg)
         name = backup.create(saves_dir(), save_id, reason)
         sg.write()
-        params = {result_as: result} if result_as else {}
+        params = result if isinstance(result, dict) else ({result_as: result} if result_as else {})
         flash(f"{t(message, **params)} {t('flash.backup_made', name=name)}", "ok")
     except SaveError as exc:
         flash(i18n.translate_error(current_lang(), exc), "error")
@@ -239,7 +240,27 @@ def player(save_id, uid):
     return render_template("player.html", farm=sg.farm(), players=sg.players(), p=p,
                            inventory=inventory, friendships=sg.friendships(uid),
                            free_slots=[s["slot"] for s in inventory if s["empty"]],
+                           recipes=recipe_lists(sg.recipes(uid), data),
                            has_game_data=data is not None, tab=uid)
+
+
+def recipe_lists(known, data):
+    """For each kind: every recipe (with game data) or the known ones, marked known or not."""
+    lang = current_lang()
+    lists = {}
+    for kind, counts in known.items():
+        rows = []
+        if data:
+            for recipe in data.recipes(kind, lang):
+                rows.append({**recipe, "known": recipe["name"] in counts,
+                             "count": counts.get(recipe["name"], 0),
+                             "icon": icon_style(data.icon(recipe["output"]), fit=24) if recipe["output"] else None})
+        listed = {row["name"] for row in rows}
+        # Known recipes the game data doesn't list (or no game data): still shown, so they can be removed
+        rows += [{"name": name, "display": name, "known": True, "count": count, "icon": None}
+                 for name, count in sorted(counts.items()) if name not in listed]
+        lists[kind] = {"rows": rows, "known": sum(row["known"] for row in rows)}
+    return lists
 
 
 def describe_item(element):
@@ -253,10 +274,15 @@ def describe_item(element):
     }
 
 
-def icon_style(icon, scale=2):
-    """CSS showing one sprite of a sheet, scaled up with crisp pixels."""
+def icon_style(icon, scale=2, fit=None):
+    """CSS showing one sprite of a sheet, scaled up with crisp pixels.
+
+    fit: size in pixels of a square box the sprite must fit in (overrides scale).
+    """
     if not icon:
         return None
+    if fit:
+        scale = fit / max(icon["w"], icon["h"])
     url = url_for("game_image", sheet=icon["sheet"])
     return (f"background-image:url('{url}');"
             f"background-position:-{icon['x'] * scale}px -{icon['y'] * scale}px;"
@@ -369,6 +395,19 @@ def _slot_arg(name):
         return int(request.form[name])
     except (KeyError, ValueError):
         abort(400)
+
+
+@app.post("/save/<save_id>/player/<uid>/recipes/<kind>")
+def set_recipes(save_id, uid, kind):
+    if kind not in ("cooking", "crafting"):
+        abort(404)
+    names = request.form.getlist("recipe")
+    def change(sg):
+        added, removed = sg.set_recipes(uid, kind, names)
+        return {"added": added, "removed": removed}
+
+    edit(save_id, change, "flash.recipes_saved")
+    return redirect(url_for("player", save_id=save_id, uid=uid) + f"#recipes-{kind}")
 
 
 @app.post("/save/<save_id>/player/<uid>/inventory/add")

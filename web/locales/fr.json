@@ -265,5 +265,19 @@
   "error.item_not_addable": "Cet objet ne peut pas encore être ajouté ({item}).",
   "error.tool_level": "Cet outil n'a pas de niveau {level}.",
   "error.no_slot": "La case {slot} n'existe pas.",
-  "error.slot_taken": "La case {slot} n'est plus vide. Recharge la page et réessaie."
+  "error.slot_taken": "La case {slot} n'est plus vide. Recharge la page et réessaie.",
+
+  "recipes.title": "Recettes",
+  "recipes.cooking": "Cuisine",
+  "recipes.crafting": "Fabrication",
+  "recipes.count": "{known} sur {total} connues",
+  "recipes.filter": "Filtrer les recettes",
+  "recipes.check_all": "Tout cocher",
+  "recipes.check_none": "Tout décocher",
+  "recipes.times_made": "Fabriquée {n} fois",
+  "recipes.crafting_note": "Décocher une recette de fabrication oublie aussi le nombre de fois où elle a été fabriquée.",
+  "recipes.save": "Enregistrer les recettes",
+  "recipes.none": "Aucune recette connue pour l'instant.",
+  "recipes.no_game_data": "Seules les recettes connues sont listées, et on peut seulement les retirer.",
+  "flash.recipes_saved": "Recettes enregistrées. Apprises : {added}, oubliées : {removed}."
 }

@@ -33,6 +33,7 @@ To use another folder, run `python run.py --saves "D:\MySaves"`, or pick it from
 - Per player: gold, Qi Gems, casino coins, max energy and health, backpack size
 - Skills, with an option to trigger the level-up screen (recipes and professions) the next time the farmer sleeps
 - Inventory: item quantity and quality, item names in your language, and with game data: item icons, adding objects and machines (search by name), removing items, moving them by drag and drop, tool upgrade levels (basic to iridium)
+- Recipes: learn or forget cooking and crafting recipes, all at once or one by one (with game data; without it, known recipes can be removed)
 - Friendship with each villager
 - Automatic backup before every change, manual backups, restore
 
@@ -40,7 +41,7 @@ Backups are stored next to the `Saves` folder, in `SaveManagerBackups/<save>/`. 
 
 ## Game data
 
-Some features need the game's own data: item names and icons, adding items, tool upgrades; recipes, appearance and the museum later. The app reads it from your copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack) (MIT licence). Without it, everything else keeps working.
+Some features need the game's own data: item names and icons, adding items, tool upgrades, the full recipe list; appearance and the museum later. The app reads it from your copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack) (MIT licence). Without it, everything else keeps working.
 
 On the home page, under **Game data**:
 

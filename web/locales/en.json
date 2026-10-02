@@ -265,5 +265,19 @@
   "error.item_not_addable": "This item can't be added yet ({item}).",
   "error.tool_level": "This tool has no level {level}.",
   "error.no_slot": "Slot {slot} doesn't exist.",
-  "error.slot_taken": "Slot {slot} isn't empty anymore. Reload the page and try again."
+  "error.slot_taken": "Slot {slot} isn't empty anymore. Reload the page and try again.",
+
+  "recipes.title": "Recipes",
+  "recipes.cooking": "Cooking",
+  "recipes.crafting": "Crafting",
+  "recipes.count": "{known} of {total} known",
+  "recipes.filter": "Filter recipes",
+  "recipes.check_all": "Check all",
+  "recipes.check_none": "Uncheck all",
+  "recipes.times_made": "Made {n} times",
+  "recipes.crafting_note": "Unchecking a crafting recipe also forgets how many times it was crafted.",
+  "recipes.save": "Save recipes",
+  "recipes.none": "No recipes known yet.",
+  "recipes.no_game_data": "Only known recipes are listed, and they can only be removed.",
+  "flash.recipes_saved": "Recipes saved. Learned: {added}, forgotten: {removed}."
 }

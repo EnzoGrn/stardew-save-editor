@@ -140,6 +140,42 @@
 {% endif %}
 </section>
 
+<section id="recipes">
+<h2>{{ t('recipes.title') }}</h2>
+{% if not has_game_data %}
+<p class="note standalone">{{ t('recipes.no_game_data') }} <a href="{{ url_for('index') }}#game-data">{{ t('inventory.enable_game_data') }}</a></p>
+{% endif %}
+{% for kind in ('cooking', 'crafting') %}
+{% set list = recipes[kind] %}
+<h3 id="recipes-{{ kind }}">{{ t('recipes.' ~ kind) }} <small class="muted">{{ t('recipes.count', known=list.known, total=list.rows|length) }}</small></h3>
+{% if list.rows %}
+<form method="post" action="{{ url_for('set_recipes', save_id=farm.id, uid=p.uid, kind=kind) }}" class="recipes">
+  <div class="recipe-tools">
+    <input type="search" class="recipe-filter" aria-label="{{ t('recipes.filter') }}" placeholder="{{ t('recipes.filter') }}">
+    <button type="button" class="secondary" data-check="all">{{ t('recipes.check_all') }}</button>
+    <button type="button" class="secondary" data-check="none">{{ t('recipes.check_none') }}</button>
+  </div>
+  <ul class="recipe-list">
+  {% for r in list.rows %}
+    <li data-name="{{ r.display|lower }} {{ r.name|lower }}">
+      <label>
+        <input type="checkbox" name="recipe" value="{{ r.name }}" {% if r.known %}checked{% endif %}>
+        <span class="icon-box" aria-hidden="true">{% if r.icon %}<span class="sprite" data-icon="{{ r.icon }}"></span>{% endif %}</span>
+        <span>{{ r.display }}</span>
+        {% if r.count %}<small class="muted" title="{{ t('recipes.times_made', n=r.count) }}">×{{ r.count }}</small>{% endif %}
+      </label>
+    </li>
+  {% endfor %}
+  </ul>
+  {% if kind == 'crafting' %}<p class="note standalone">{{ t('recipes.crafting_note') }}</p>{% endif %}
+  <button>{{ t('recipes.save') }}</button>
+</form>
+{% else %}
+<p class="empty">{{ t('recipes.none') }}</p>
+{% endif %}
+{% endfor %}
+</section>
+
 <section id="friends">
 <h2>{{ t('friends.title') }}</h2>
 {% if friendships %}
@@ -247,6 +283,24 @@ if (addForm) {
     if (e.key === 'Enter') { e.preventDefault(); list.querySelector('button')?.click(); }
   });
 }
+
+// Recipes: filter the list as you type; check or uncheck every visible recipe
+document.querySelectorAll('form.recipes').forEach(form => {
+  const rows = [...form.querySelectorAll('.recipe-list li')];
+  const filter = form.querySelector('.recipe-filter');
+  const fold = text => text.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  filter.addEventListener('input', () => {
+    const query = fold(filter.value.trim());
+    rows.forEach(row => { row.hidden = query !== '' && !fold(row.dataset.name).includes(query); });
+  });
+  form.querySelectorAll('[data-check]').forEach(button =>
+    button.addEventListener('click', () => {
+      rows.filter(row => !row.hidden).forEach(row => {
+        row.querySelector('input').checked = button.dataset.check === 'all';
+      });
+    }));
+  filter.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+});
 
 // Shows the hearts next to each field and updates them while typing
 document.querySelectorAll('.hearts').forEach(span => {

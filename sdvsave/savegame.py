@@ -291,6 +291,45 @@ class SaveGame:
                                      "field.friendship", npc=npc)
                     _set(item.find("value/Friendship"), "Points", value)
 
+    # ------------------------------------------------------------------ recipes
+    # <cookingRecipes> and <craftingRecipes>: recipe name → times made. Cooking keeps
+    # 0 there (dishes cooked are counted in <recipesCooked>, by item, left untouched);
+    # crafting counts how many times the recipe was crafted.
+    _RECIPE_TAGS = {"cooking": "cookingRecipes", "crafting": "craftingRecipes"}
+
+    def recipes(self, uid):
+        """{"cooking": {name: times made}, "crafting": {…}} for a player."""
+        player = self._player(uid)
+        return {kind: {item.findtext("key/string"): _int(item, "value/int")
+                       for item in player.find(tag)}
+                for kind, tag in self._RECIPE_TAGS.items()}
+
+    def set_recipes(self, uid, kind, names):
+        """Makes the player know exactly these recipes of a kind.
+
+        Recipes kept keep their count; new ones start at 0; removed ones lose it.
+        Returns (added, removed) counts.
+        """
+        names = set(names)
+        tag = self._RECIPE_TAGS[kind]
+        added = removed = 0
+        for i, farmer in enumerate(self._copies(uid)):
+            known = farmer.find(tag)
+            present = set()
+            for item in list(known):
+                name = item.findtext("key/string")
+                if name in names:
+                    present.add(name)
+                else:
+                    known.remove(item)
+                    removed += i == 0
+            for name in sorted(names - present):
+                item = etree.SubElement(known, "item")
+                etree.SubElement(etree.SubElement(item, "key"), "string").text = name
+                etree.SubElement(etree.SubElement(item, "value"), "int").text = "0"
+                added += i == 0
+        return added, removed
+
     # ------------------------------------------------------------------ inventory
     def inventory(self, uid, describe=None):
         """Inventory slots of a player.

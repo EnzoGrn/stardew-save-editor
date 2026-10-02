@@ -365,3 +365,38 @@ class GameData:
                 seen.add(name)
                 result.append((qualified, name))
         return result[:limit]
+
+    # ------------------------------------------------------------------ recipes
+    # Data/CookingRecipes.json and Data/CraftingRecipes.json: recipe name → "/"-separated
+    # fields. The output item is field 2 ("id" or "id count", sometimes qualified like
+    # "(BC)238"); crafting recipes say in field 3 whether it's a big craftable. An
+    # optional display name comes last (field 4 for cooking, 5 for crafting);
+    # otherwise the game shows the output item's name.
+    _RECIPE_FILES = {"cooking": ("CookingRecipes", None, 4), "crafting": ("CraftingRecipes", 3, 5)}
+
+    def recipes(self, kind, lang):
+        """Every recipe of a kind ("cooking" or "crafting"), sorted by display name.
+
+        Returns [{"name": key used in saves, "display": name in the language,
+                  "output": qualified id of the item it makes, or None}].
+        """
+        file, big_at, display_at = self._RECIPE_FILES[kind]
+        result = []
+        for name, raw in (_read_json(self.data_dir / "Data" / f"{file}.json") or {}).items():
+            fields = raw.split("/") if isinstance(raw, str) else []
+            output = None
+            if len(fields) > 2 and fields[2].split():
+                item_id = fields[2].split()[0]
+                match = re.fullmatch(r"\((\w+)\)(.+)", item_id)
+                if match:
+                    output = f"{match.group(1)}:{match.group(2)}"
+                else:
+                    big = big_at is not None and len(fields) > big_at and fields[big_at] == "true"
+                    output = f"{'BC' if big else 'O'}:{item_id}"
+                if output not in self.items:
+                    output = None
+            explicit = fields[display_at] if len(fields) > display_at else ""
+            display = (self.text(explicit, lang) if explicit else None) \
+                or (self.display_name(output, lang) if output else None) or name
+            result.append({"name": name, "display": display, "output": output})
+        return sorted(result, key=lambda r: self._fold(r["display"]))

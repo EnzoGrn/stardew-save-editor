@@ -29,11 +29,26 @@ def game(tmp_path):
         "Moss": {"Name": "Moss", "DisplayName": "[LocalizedText Strings\\Objects:Moss_Name]",
                  "Type": "Basic", "Category": -16, "Price": 5, "Texture": "TileSheets\\Objects_2",
                  "SpriteIndex": 38},
+        "194": {"Name": "Fried Egg", "DisplayName": "[LocalizedText Strings\\Objects:FriedEgg_Name]",
+                "Type": "Cooking", "Category": -7, "SpriteIndex": 194},
+        "322": {"Name": "Wood Fence", "DisplayName": "[LocalizedText Strings\\Objects:WoodFence_Name]",
+                "Type": "Crafting", "Category": -8, "SpriteIndex": 322},
+        "495": {"Name": "Spring Seeds", "DisplayName": "[LocalizedText Strings\\Objects:SpringSeeds_Name]",
+                "Type": "Seeds", "Category": -74, "SpriteIndex": 495},
         "516": {"Name": "Small Glow Ring", "DisplayName": "[LocalizedText Strings\\Objects:SmallGlowRing_Name]",
                 "Type": "Ring", "Category": -96, "SpriteIndex": 516},
         "24": {"Name": "Parsnip", "DisplayName": "[LocalizedText Strings\\Objects:Parsnip_Name]"},
         "348": {"Name": "Wine", "DisplayName": "[LocalizedText Strings\\Objects:Wine_Name]"},
         "999": {"Name": "Mystery", "DisplayName": "[LocalizedText Strings\\Objects:Missing_Name]"},
+    })
+    write_json(data / "Data" / "CookingRecipes.json", {
+        "Fried Egg": "-5 1/10 10/194/default/",
+        "Strange Bun": "246 1 731 1/1 10/731/none/",
+    })
+    write_json(data / "Data" / "CraftingRecipes.json", {
+        "Wood Fence": "388 2/Field/322/false/l 0/",
+        "Scarecrow": "388 50 382 1 771 20/Home/8/true/Farming 1/",
+        "Wild Seeds (Sp)": "16 1 18 1/Field/495 10/false/Foraging 1/[LocalizedText Strings\\Objects:WildSeedsSp]",
     })
     write_json(data / "Data" / "BigCraftables.json", {
         "130": {"Name": "Chest", "DisplayName": "[LocalizedText Strings\\BigCraftables:Chest_Name]"},
@@ -69,7 +84,8 @@ def game(tmp_path):
         "Wine_Flavored_Name": "{0} Wine"})
     write_json(data / "Strings" / "Objects.fr-FR.json", {
         "Clay_Name": "Argile", "Parsnip_Name": "Panais", "Wine_Name": "Vin", "Diamond_Name": "Diamant",
-        "Moss_Name": "Mousse",
+        "Moss_Name": "Mousse", "FriedEgg_Name": "Œuf au plat", "WoodFence_Name": "Clôture en bois",
+        "SpringSeeds_Name": "Graines de printemps", "WildSeedsSp": "Graines sauvages (Pr)",
         "Wine_Flavored_Name": "Vin de {0}"})
     write_json(data / "Strings" / "Objects.pt-BR.json", {"Clay_Name": "Argila"})
     write_json(data / "Strings" / "BigCraftables.json", {"Chest_Name": "Chest"})
