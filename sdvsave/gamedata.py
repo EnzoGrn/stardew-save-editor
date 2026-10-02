@@ -14,6 +14,8 @@ Strings/Objects.fr-FR.json for French.
 """
 import json
 import re
+import struct
+import unicodedata
 from pathlib import Path
 
 from .constants import XSI
@@ -46,6 +48,35 @@ _TOOL_TYPES = {"Axe", "Hoe", "Pickaxe", "WateringCan", "FishingRod", "Pan", "She
 _FURNITURE_TYPES = {"Furniture", "BedFurniture", "StorageFurniture", "TV",
                     "FishTankFurniture", "RandomizedPlantFurniture"}
 
+# Icons: default sprite sheet per catalogue, and the size of one sprite on it
+_SHEETS = {
+    "O": ("Maps/springobjects", 16, 16),
+    "BC": ("TileSheets/Craftables", 16, 32),
+    "T": ("TileSheets/tools", 16, 16),
+    "W": ("TileSheets/weapons", 16, 16),
+    "H": ("Characters/Farmer/hats", 20, 20),
+    "B": ("Maps/springobjects", 16, 16),
+}
+
+# Items the app can create from scratch: plain objects and big craftables.
+# Some ids are their own class in the game (with extra fields a plain object
+# doesn't have), so creating them as plain objects could break a save.
+ADDABLE_PREFIXES = ("O", "BC")
+SPECIAL_CLASS_IDS = {
+    "O:93",      # Torch
+    "O:710",     # Crab Pot
+    "BC:62",     # Garden Pot
+    "BC:130", "BC:232", "BC:BigChest", "BC:BigStoneChest",  # chests
+    "BC:163",    # Cask
+    "BC:208",    # Workbench
+    "BC:211",    # Wood Chipper
+    "BC:214",    # Phonograph
+    "BC:216",    # Mini-Fridge
+    "BC:248",    # Mini-Shipping Bin
+    "BC:256",    # Junimo Chest
+    "BC:275",    # Hopper
+}
+
 _TOKEN = re.compile(r"\[LocalizedText\s+([^\]\s:]+):([^\]\s]+)((?:\s+[^\]\s]+)*)\]")
 
 
@@ -72,9 +103,11 @@ class GameData:
 
     def __init__(self, data_dir):
         self.data_dir = Path(data_dir)
-        self.items = {}           # "O:330" → {"name": ..., "display": raw display name}
+        self.items = {}           # "O:330" → {"name", "display" (raw display name), "data"}
         self._strings = {}        # (asset, lang suffix) → dict, loaded on demand
         self._localized_data = {}  # (file, lang suffix) → dict, loaded on demand
+        self._sheet_sizes = {}    # sprite sheet → (width, height), read on demand
+        self._search_index = {}   # lang → [(folded text, qualified id)], built on demand
         self.languages = self._find_languages()
         self._load_items()
 
@@ -100,6 +133,7 @@ class GameData:
                     self.items[f"{prefix}:{item_id}"] = {
                         "name": data.get("Name") or item_id,
                         "display": data.get("DisplayName"),
+                        "data": data,
                     }
         for prefix, (file, name_at, display_at) in _SLASH_FILES.items():
             for item_id, raw in (_read_json(self.data_dir / "Data" / f"{file}.json") or {}).items():
@@ -109,6 +143,7 @@ class GameData:
                         "name": fields[name_at] if len(fields) > name_at else item_id,
                         "display": fields[display_at] if len(fields) > display_at else None,
                         "slash": (file, display_at),
+                        "data": {},
                     }
 
     def _suffix(self, lang):
@@ -227,3 +262,106 @@ class GameData:
             parent = f"{match.group(1)}:{match.group(2)}" if match else f"O:{parent}"
             return self.display_name(qualified, lang, preserved_from=parent)
         return self.display_name(qualified, lang)
+
+    # ------------------------------------------------------------------ icons
+    def _sheet_size(self, sheet):
+        """(width, height) of a sprite sheet PNG, read from its header; None if missing."""
+        if sheet not in self._sheet_sizes:
+            size = None
+            try:
+                with open(self.data_dir.joinpath(*sheet.split("/")).with_suffix(".png"), "rb") as f:
+                    header = f.read(24)
+                if header[:8] == b"\x89PNG\r\n\x1a\n":
+                    size = struct.unpack(">II", header[16:24])
+            except OSError:
+                pass
+            self._sheet_sizes[sheet] = size
+        return self._sheet_sizes[sheet]
+
+    def icon(self, qualified_id):
+        """Where an item's sprite is: {"sheet", "x", "y", "w", "h", "sheet_w", "sheet_h"}, or None."""
+        item = self.items.get(qualified_id)
+        prefix = qualified_id.split(":", 1)[0]
+        if item is None or prefix not in _SHEETS:
+            return None
+        sheet, w, h = _SHEETS[prefix]
+        data = item["data"]
+        if data.get("Texture"):
+            sheet = data["Texture"].replace("\\", "/")
+        if prefix == "T" and data.get("MenuSpriteIndex", -1) >= 0:
+            index = data["MenuSpriteIndex"]
+        elif "SpriteIndex" in data:
+            index = data["SpriteIndex"]
+        else:
+            item_id = qualified_id.split(":", 1)[1]
+            if not item_id.isdigit():
+                return None
+            index = int(item_id)  # hats and boots: the sprite index is the id
+        size = self._sheet_size(sheet)
+        if size is None or index < 0:
+            return None
+        columns = max(1, size[0] // w)
+        return {"sheet": sheet, "x": index % columns * w, "y": index // columns * h,
+                "w": w, "h": h, "sheet_w": size[0], "sheet_h": size[1]}
+
+    def sheet_path(self, sheet):
+        """File of a sprite sheet named by icon(), or None if it isn't a sheet of this data."""
+        path = self.data_dir.joinpath(*sheet.split("/")).with_suffix(".png").resolve()
+        root = self.data_dir.resolve()
+        return path if root in path.parents and path.is_file() else None
+
+    # ------------------------------------------------------------------ tools
+    # Tools upgraded at the blacksmith, level by level (copper, steel, gold, iridium).
+    # Fishing rods also have levels, but each is a different rod with its own
+    # attachments, so they aren't changed this way.
+    UPGRADABLE_TOOLS = ("Axe", "Hoe", "Pickaxe", "WateringCan", "Pan")
+
+    def tool_levels(self, class_name):
+        """{upgrade level: tool id} for an upgradable tool class; empty for others."""
+        if class_name not in self.UPGRADABLE_TOOLS:
+            return {}
+        levels = {}
+        for qualified, item in self.items.items():
+            data = item["data"]
+            if qualified.startswith("T:") and data.get("ClassName") == class_name \
+                    and data.get("UpgradeLevel", -1) >= 0:
+                levels.setdefault(data["UpgradeLevel"], qualified[2:])
+        return dict(sorted(levels.items())) if len(levels) > 1 else {}
+
+    # ------------------------------------------------------------------ adding items
+    def addable(self, qualified_id):
+        return (qualified_id.split(":", 1)[0] in ADDABLE_PREFIXES
+                and qualified_id in self.items and qualified_id not in SPECIAL_CLASS_IDS
+                and self.items[qualified_id]["data"].get("Type") != "Ring")
+
+    @staticmethod
+    def _fold(text):
+        """Lowercase, without accents: "Été" and "ete" match."""
+        decomposed = unicodedata.normalize("NFKD", text or "")
+        return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
+
+    def search(self, query, lang, limit=40):
+        """Items that can be added, matching a query in the UI language or in English.
+
+        Returns [(qualified id, display name)], names starting with the query first.
+        """
+        query = self._fold(query.strip())
+        if not query:
+            return []
+        if lang not in self._search_index:
+            index = []
+            for qualified in self.items:
+                if self.addable(qualified):
+                    name = self.display_name(qualified, lang)
+                    index.append((self._fold(name), self._fold(self.items[qualified]["name"]), name, qualified))
+            self._search_index[lang] = sorted(index)
+        found = [(not (shown.startswith(query) or english.startswith(query)), shown, qualified, name)
+                 for shown, english, name, qualified in self._search_index[lang]
+                 if query in shown or query in english]
+        found.sort()
+        seen, result = set(), []
+        for _, _, qualified, name in found:
+            if name not in seen:  # the game has a few duplicates (unused copies)
+                seen.add(name)
+                result.append((qualified, name))
+        return result[:limit]

@@ -54,10 +54,11 @@ try { if (localStorage.getItem('warningDismissed')) document.documentElement.cla
   <div class="board">{% block content %}{% endblock %}</div>
 </main>
 <script>
-// Forms that need confirming: the question text is in data-confirm
-document.querySelectorAll('form[data-confirm]').forEach(form =>
+// Forms (or single buttons) that need confirming: the question is in data-confirm
+document.querySelectorAll('form').forEach(form =>
   form.addEventListener('submit', event => {
-    if (!confirm(form.dataset.confirm)) event.preventDefault();
+    const question = event.submitter?.dataset.confirm || form.dataset.confirm;
+    if (question && !confirm(question)) event.preventDefault();
   }));
 
 document.querySelectorAll('.flash-close').forEach(btn =>

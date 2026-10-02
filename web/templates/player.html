@@ -63,19 +63,34 @@
 <h2>{{ t('inventory.title') }}</h2>
 {% if not has_game_data %}
 <p class="note standalone">{{ t('inventory.no_game_data') }} <a href="{{ url_for('index') }}#game-data">{{ t('inventory.enable_game_data') }}</a></p>
+{% else %}
+<p class="note standalone">{{ t('inventory.move_hint') }}</p>
 {% endif %}
 <form method="post" action="{{ url_for('set_inventory', save_id=farm.id, uid=p.uid) }}">
-<ol class="inventory">
+<ol class="inventory" data-move-form="move-form">
 {% for it in inventory %}
-  <li class="{{ 'empty' if it.empty }}">
+  <li class="{{ 'empty' if it.empty }}" data-slot="{{ it.slot }}" {% if not it.empty %}draggable="true"{% endif %}>
   {% if it.empty %}
     <span class="muted">{{ t('inventory.empty_slot') }}</span>
   {% else %}
-    <span class="item-name">{{ it.name }}</span>
+    <div class="slot-head">
+      {% if it.icon %}<span class="sprite" data-icon="{{ it.icon }}" aria-hidden="true"></span>{% endif %}
+      <span class="item-name">{{ it.name }}</span>
+      <button type="button" class="slot-remove" data-remove-slot="{{ it.slot }}"
+              aria-label="{{ t('inventory.remove', item=it.name) }}"
+              title="{{ t('inventory.remove', item=it.name) }}"
+              data-confirm="{{ t('inventory.confirm_remove', item=it.name) }}">×</button>
+    </div>
     {% if it.editable %}
       <input aria-label="{{ t('inventory.quantity_of', item=it.name) }}" name="stack_{{ it.slot }}" type="number" min="1" max="999" value="{{ it.stack }}">
+      {% if it.has_quality %}
       <select aria-label="{{ t('inventory.quality_of', item=it.name) }}" name="quality_{{ it.slot }}">
         {% for q in QUALITIES %}<option value="{{ q }}" {% if q == it.quality %}selected{% endif %}>{{ t('quality.' ~ q) }}</option>{% endfor %}
+      </select>
+      {% endif %}
+    {% elif it.tool_levels %}
+      <select aria-label="{{ t('inventory.tool_level_of', item=it.name) }}" name="tool_level_{{ it.slot }}">
+        {% for level in it.tool_levels %}<option value="{{ level }}" {% if level == it.upgrade_level %}selected{% endif %}>{{ t('tool_level.' ~ level) }}</option>{% endfor %}
       </select>
     {% else %}
       {% set type_label = t('item_type.' ~ it.type, default=it.type) %}
@@ -85,9 +100,44 @@
   </li>
 {% endfor %}
 </ol>
-{% if inventory|selectattr('editable')|list %}<button>{{ t('inventory.save') }}</button>
+{% if inventory|selectattr('editable')|list or inventory|selectattr('tool_levels')|list %}<button>{{ t('inventory.save') }}</button>
 {% else %}<p class="muted">{{ t('inventory.nothing_editable') }}</p>{% endif %}
 </form>
+
+<form method="post" action="{{ url_for('move_item', save_id=farm.id, uid=p.uid) }}" id="move-form" hidden>
+  <input type="hidden" name="source"><input type="hidden" name="target">
+</form>
+<form method="post" action="{{ url_for('remove_item', save_id=farm.id, uid=p.uid) }}" id="remove-form" hidden>
+  <input type="hidden" name="slot">
+</form>
+
+{% if has_game_data %}
+<h3>{{ t('inventory.add_title') }}</h3>
+{% if free_slots %}
+<form method="post" action="{{ url_for('add_item', save_id=farm.id, uid=p.uid) }}" class="add-item"
+      data-search-url="{{ url_for('search_items') }}">
+  <div class="add-search">
+    <label for="item-search">{{ t('inventory.search') }}</label>
+    <input id="item-search" type="search" autocomplete="off" placeholder="{{ t('inventory.search_placeholder') }}">
+    <ul class="search-results" role="listbox" aria-label="{{ t('inventory.search_results') }}"></ul>
+    <p class="muted search-empty" hidden>{{ t('inventory.search_none') }}</p>
+  </div>
+  <input type="hidden" name="item" required>
+  <p class="chosen" hidden><span class="sprite"></span><strong class="chosen-name"></strong></p>
+  <div class="fields">
+    <label><span class="field-label">{{ t('field.quantity_short') }}</span><span class="field-hint"></span>
+      <input name="stack" type="number" min="1" max="999" value="1"></label>
+    <label><span class="field-label">{{ t('field.quality_short') }}</span><span class="field-hint">{{ t('inventory.quality_hint') }}</span>
+      <select name="quality">{% for q in QUALITIES %}<option value="{{ q }}">{{ t('quality.' ~ q) }}</option>{% endfor %}</select></label>
+    <label><span class="field-label">{{ t('inventory.slot') }}</span><span class="field-hint"></span>
+      <select name="slot">{% for s in free_slots %}<option value="{{ s }}">{{ t('inventory.slot_number', n=s + 1) }}</option>{% endfor %}</select></label>
+  </div>
+  <button class="add-submit" disabled>{{ t('inventory.add') }}</button>
+</form>
+{% else %}
+<p class="empty">{{ t('inventory.full') }}</p>
+{% endif %}
+{% endif %}
 </section>
 
 <section id="friends">
@@ -113,6 +163,91 @@
 </section>
 
 <script>
+// Item icons: the sprite position comes in data-icon (kept out of the style attribute so the
+// template stays plain HTML for editors)
+document.querySelectorAll('[data-icon]').forEach(el => { el.style.cssText = el.dataset.icon; });
+
+// Drag an item onto another slot to move it there (swapping with what is there)
+const grid = document.querySelector('.inventory');
+if (grid) {
+  const moveForm = document.getElementById(grid.dataset.moveForm);
+  let dragged = null;
+  grid.addEventListener('dragstart', e => {
+    dragged = e.target.closest('li[draggable]');
+    if (dragged) { dragged.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+  });
+  grid.addEventListener('dragend', () => {
+    grid.querySelectorAll('.dragging, .drop-target').forEach(el => el.classList.remove('dragging', 'drop-target'));
+  });
+  grid.addEventListener('dragover', e => {
+    const slot = e.target.closest('li');
+    if (dragged && slot && slot !== dragged) {
+      e.preventDefault();
+      grid.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+      slot.classList.add('drop-target');
+    }
+  });
+  // Remove buttons live outside the inventory form: Enter in a field must never remove anything
+  const removeForm = document.getElementById('remove-form');
+  grid.querySelectorAll('[data-remove-slot]').forEach(button =>
+    button.addEventListener('click', () => {
+      if (!confirm(button.dataset.confirm)) return;
+      removeForm.elements.slot.value = button.dataset.removeSlot;
+      removeForm.submit();
+    }));
+  grid.addEventListener('drop', e => {
+    const slot = e.target.closest('li');
+    if (!dragged || !slot || slot === dragged) return;
+    e.preventDefault();
+    moveForm.elements.source.value = dragged.dataset.slot;
+    moveForm.elements.target.value = slot.dataset.slot;
+    moveForm.submit();
+  });
+}
+
+// Add-item search: results come from the game data, in the UI language
+const addForm = document.querySelector('.add-item');
+if (addForm) {
+  const box = addForm.querySelector('#item-search');
+  const list = addForm.querySelector('.search-results');
+  const none = addForm.querySelector('.search-empty');
+  const chosen = addForm.querySelector('.chosen');
+  let timer = null;
+  const pick = result => {
+    // Not addForm.elements.item: "item" is a built-in method of the elements collection
+    addForm.querySelector('[name="item"]').value = result.id;
+    chosen.querySelector('.chosen-name').textContent = result.name;
+    chosen.querySelector('.sprite').style.cssText = result.icon || '';
+    chosen.hidden = false;
+    addForm.querySelector('.add-submit').disabled = false;
+    list.replaceChildren();
+    box.value = '';
+  };
+  const search = async () => {
+    const query = box.value.trim();
+    if (!query) { list.replaceChildren(); none.hidden = true; return; }
+    const url = `${addForm.dataset.searchUrl}?q=${encodeURIComponent(query)}`;
+    const { results } = await (await fetch(url)).json();
+    none.hidden = results.length > 0;
+    list.replaceChildren(...results.map(result => {
+      const item = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      const sprite = document.createElement('span');
+      sprite.className = 'sprite';
+      sprite.style.cssText = result.icon || '';
+      button.append(sprite, result.name);
+      button.addEventListener('click', () => pick(result));
+      item.append(button);
+      return item;
+    }));
+  };
+  box.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 200); });
+  box.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); list.querySelector('button')?.click(); }
+  });
+}
+
 // Shows the hearts next to each field and updates them while typing
 document.querySelectorAll('.hearts').forEach(span => {
   const perHeart = +span.closest('.friends').dataset.pointsPerHeart;

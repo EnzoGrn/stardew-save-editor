@@ -32,7 +32,7 @@ To use another folder, run `python run.py --saves "D:\MySaves"`, or pick it from
 - Linked accounts: view and clear each farmer's `userID` (moving from Game Pass to Steam, changing accounts)
 - Per player: gold, Qi Gems, casino coins, max energy and health, backpack size
 - Skills, with an option to trigger the level-up screen (recipes and professions) the next time the farmer sleeps
-- Inventory: item quantity and quality, item names in your language (with game data)
+- Inventory: item quantity and quality, item names in your language, and with game data: item icons, adding objects and machines (search by name), removing items, moving them by drag and drop, tool upgrade levels (basic to iridium)
 - Friendship with each villager
 - Automatic backup before every change, manual backups, restore
 
@@ -40,7 +40,7 @@ Backups are stored next to the `Saves` folder, in `SaveManagerBackups/<save>/`. 
 
 ## Game data
 
-Some features need the game's own data: item names in your language now, and adding items, recipes, appearance and the museum later. The app reads it from your copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack) (MIT licence). Without it, everything else keeps working.
+Some features need the game's own data: item names and icons, adding items, tool upgrades; recipes, appearance and the museum later. The app reads it from your copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack) (MIT licence). Without it, everything else keeps working.
 
 On the home page, under **Game data**:
 
@@ -78,6 +78,7 @@ sdvsave/            save logic, with no dependency on the UI
   errors.py         errors as translation keys
   gamedata.py       item catalogue and translated names, from the unpacked game
   gamefolder.py     finding the game install, state of its unpacked data
+  items.py          building new items and upgrading tools, in the game's own format
 web/                Flask UI
   app.py            routes
   i18n.py           translation; `python -m web.i18n` checks the language files

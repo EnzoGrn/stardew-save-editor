@@ -199,3 +199,35 @@ button.secondary:hover { background: #f3dba6; }
 .job { margin: 0 0 1rem; max-width: 40rem; }
 .job progress { width: 100%; height: 1.1rem; accent-color: var(--leaf); }
 .job-message { margin: .3rem 0 0; }
+
+/* Inventory: sprites from the game, drag to move, remove button */
+.sprite { display: inline-block; flex: none; background-repeat: no-repeat; image-rendering: pixelated; }
+.slot-head { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.slot-head .item-name { flex: 1; min-width: 0; overflow-wrap: break-word; hyphens: auto; }
+.slot-remove {
+  flex: none; width: 1.8rem; height: 1.8rem; padding: 0;
+  font: 700 1.2rem/1 var(--body); color: var(--danger);
+  background: none; border: 0; box-shadow: none; opacity: .55;
+}
+.inventory li:hover .slot-remove, .slot-remove:focus-visible { opacity: 1; }
+.slot-remove:hover { background: var(--parchment-deep); }
+.slot-remove:active { transform: none; box-shadow: none; }
+.inventory li[draggable="true"] { cursor: grab; }
+.inventory li.dragging { opacity: .45; }
+.inventory li.drop-target { outline: 3px dashed var(--leaf); outline-offset: -3px; }
+
+/* Add an item */
+h3 { font-family: var(--head); font-size: 1.15rem; margin: 1.8rem 0 .6rem; }
+.add-search { display: grid; gap: .3rem; max-width: 30rem; margin-bottom: .8rem; }
+.add-search label { font-weight: 800; }
+.search-results { list-style: none; margin: 0; padding: 0; max-height: 18rem; overflow-y: auto;
+  background: #fffaf0; border: 2px solid var(--wood); }
+.search-results:empty { display: none; }
+.search-results button {
+  display: flex; align-items: center; gap: .6rem; width: 100%; text-align: left;
+  font: inherit; padding: .3rem .6rem; background: none; border: 0; box-shadow: none;
+  border-bottom: 1px solid var(--parchment-deep);
+}
+.search-results button:hover, .search-results button:focus-visible { background: var(--parchment-deep); }
+.search-results button:active { transform: none; box-shadow: none; }
+.chosen { display: flex; align-items: center; gap: .6rem; margin: 0 0 .8rem; }

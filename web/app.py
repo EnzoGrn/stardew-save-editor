@@ -2,11 +2,15 @@
 import re
 from pathlib import Path
 
-from flask import Flask, abort, flash, g, jsonify, redirect, render_template, request, url_for
+from flask import (Flask, abort, flash, g, jsonify, redirect, render_template, request,
+                   send_file, url_for)
 
 from sdvsave import SaveGame, SaveError, backup, default_saves_dir, gamefolder, list_saves
 from sdvsave.constants import QUALITIES, POINTS_PER_HEART, MAX_FRIENDSHIP_POINTS, BACKPACK_SIZES
+from sdvsave import items
+from sdvsave.constants import XSI
 from sdvsave.gamedata import GameData, find_data_dir
+from sdvsave.savegame import bounded
 from sdvsave.paths import backups_root, is_save_folder
 
 from . import i18n, picker, settings, unpacker
@@ -230,11 +234,55 @@ def player(save_id, uid):
         p = sg.player(uid)
     except KeyError:
         abort(404)
-    data, lang = game_data(), current_lang()
-    namer = (lambda element: data.item_name(element, lang)) if data else None
+    data = game_data()
+    inventory = sg.inventory(uid, describe_item if data else None)
     return render_template("player.html", farm=sg.farm(), players=sg.players(), p=p,
-                           inventory=sg.inventory(uid, namer), friendships=sg.friendships(uid),
+                           inventory=inventory, friendships=sg.friendships(uid),
+                           free_slots=[s["slot"] for s in inventory if s["empty"]],
                            has_game_data=data is not None, tab=uid)
+
+
+def describe_item(element):
+    """Extra fields for an inventory item, from the game data."""
+    data, lang = game_data(), current_lang()
+    qualified = data.qualified_id(element)
+    return {
+        "name": data.item_name(element, lang),
+        "icon": icon_style(data.icon(qualified)) if qualified else None,
+        "tool_levels": data.tool_levels(element.get(XSI + "type") or ""),
+    }
+
+
+def icon_style(icon, scale=2):
+    """CSS showing one sprite of a sheet, scaled up with crisp pixels."""
+    if not icon:
+        return None
+    url = url_for("game_image", sheet=icon["sheet"])
+    return (f"background-image:url('{url}');"
+            f"background-position:-{icon['x'] * scale}px -{icon['y'] * scale}px;"
+            f"background-size:{icon['sheet_w'] * scale}px {icon['sheet_h'] * scale}px;"
+            f"width:{icon['w'] * scale}px;height:{icon['h'] * scale}px")
+
+
+@app.get("/game-image/<path:sheet>")
+def game_image(sheet):
+    """A sprite sheet from the unpacked game data (only PNG files inside it)."""
+    data = game_data()
+    path = data.sheet_path(sheet) if data else None
+    if path is None:
+        abort(404)
+    return send_file(path, mimetype="image/png", max_age=3600)
+
+
+@app.get("/game-data/search")
+def search_items():
+    """Items that can be added, for the add-item search box."""
+    data = game_data()
+    if data is None:
+        return jsonify(results=[])
+    results = data.search(request.args.get("q", ""), current_lang())
+    return jsonify(results=[{"id": qualified, "name": name, "icon": icon_style(data.icon(qualified))}
+                            for qualified, name in results])
 
 
 @app.route("/save/<save_id>/backups")
@@ -304,12 +352,54 @@ def set_friendships(save_id, uid):
 
 @app.post("/save/<save_id>/player/<uid>/inventory")
 def set_inventory(save_id, uid):
-    changes = {}
+    changes, levels = {}, {}
     for key, value in request.form.items():
         if key.startswith("stack_"):
             slot = int(key[6:])
             changes[slot] = {"stack": value, "quality": request.form.get(f"quality_{slot}", 0)}
-    edit(save_id, lambda sg: sg.set_inventory(uid, changes), "flash.inventory_saved")
+        elif key.startswith("tool_level_"):
+            levels[int(key[11:])] = value
+    edit(save_id, lambda sg: sg.set_inventory(uid, changes, levels, game_data()),
+         "flash.inventory_saved")
+    return redirect(url_for("player", save_id=save_id, uid=uid) + "#inventory")
+
+
+def _slot_arg(name):
+    try:
+        return int(request.form[name])
+    except (KeyError, ValueError):
+        abort(400)
+
+
+@app.post("/save/<save_id>/player/<uid>/inventory/add")
+def add_item(save_id, uid):
+    data = game_data()
+    if data is None:
+        abort(400)
+
+    def change(sg):
+        quality = request.form.get("quality", "0")
+        element = items.new_item(
+            data, request.form.get("item", ""),
+            stack=bounded(request.form.get("stack"), 1, 999, "field.quantity"),
+            quality=int(quality) if quality.isdigit() else 0)
+        sg.add_item(uid, _slot_arg("slot"), element)
+        return data.display_name(request.form["item"], current_lang())
+
+    edit(save_id, change, "flash.item_added", result_as="name")
+    return redirect(url_for("player", save_id=save_id, uid=uid) + "#inventory")
+
+
+@app.post("/save/<save_id>/player/<uid>/inventory/remove")
+def remove_item(save_id, uid):
+    edit(save_id, lambda sg: sg.remove_item(uid, _slot_arg("slot")), "flash.item_removed")
+    return redirect(url_for("player", save_id=save_id, uid=uid) + "#inventory")
+
+
+@app.post("/save/<save_id>/player/<uid>/inventory/move")
+def move_item(save_id, uid):
+    edit(save_id, lambda sg: sg.move_item(uid, _slot_arg("source"), _slot_arg("target")),
+         "flash.item_moved")
     return redirect(url_for("player", save_id=save_id, uid=uid) + "#inventory")
 
 

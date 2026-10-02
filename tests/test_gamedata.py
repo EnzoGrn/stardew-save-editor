@@ -3,7 +3,6 @@
 The fixtures mimic StardewXnbHack's output format with a handful of made-up
 entries; no game file is included.
 """
-import json
 import os
 import time
 
@@ -14,56 +13,6 @@ from sdvsave import gamefolder
 from sdvsave.gamedata import GameData, find_data_dir
 
 XSI_NS = "http://www.w3.org/2001/XMLSchema-instance"
-
-
-def write_json(path, data):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data), encoding="utf-8")
-
-
-@pytest.fixture
-def game(tmp_path):
-    """A fake game folder with packed content and an unpacked copy."""
-    game = tmp_path / "Stardew Valley"
-    (game / "Content" / "Data").mkdir(parents=True)
-    (game / "Content" / "Data" / "Objects.xnb").write_bytes(b"xnb")
-    (game / "Stardew Valley.dll").write_bytes(b"dll")
-    data = game / "Content (unpacked)"
-    write_json(data / "Data" / "Objects.json", {
-        "330": {"Name": "Clay", "DisplayName": "[LocalizedText Strings\\Objects:Clay_Name]"},
-        "24": {"Name": "Parsnip", "DisplayName": "[LocalizedText Strings\\Objects:Parsnip_Name]"},
-        "348": {"Name": "Wine", "DisplayName": "[LocalizedText Strings\\Objects:Wine_Name]"},
-        "999": {"Name": "Mystery", "DisplayName": "[LocalizedText Strings\\Objects:Missing_Name]"},
-    })
-    write_json(data / "Data" / "BigCraftables.json", {
-        "130": {"Name": "Chest", "DisplayName": "[LocalizedText Strings\\BigCraftables:Chest_Name]"},
-    })
-    write_json(data / "Data" / "Tools.json", {
-        "Axe": {"Name": "Axe", "DisplayName": "[LocalizedText Strings\\Tools:Axe_Name]"},
-    })
-    write_json(data / "Data" / "Weapons.json", {
-        "47": {"Name": "Scythe", "DisplayName": "[LocalizedText Strings\\Weapons:Scythe_Name]"},
-    })
-    write_json(data / "Data" / "Pants.json", {
-        "0": {"Name": "Farmer Pants", "DisplayName": "[LocalizedText Strings\\Pants:FarmerPants_Name]"},
-    })
-    write_json(data / "Data" / "Boots.json", {"504": "Sneakers/A little flimsy./50/1/0/0/Sneakers"})
-    write_json(data / "Data" / "Boots.fr-FR.json", {"504": "Sneakers/Un peu fragiles./50/1/0/0/Baskets"})
-    write_json(data / "Data" / "hats.json", {"0": "Cowboy Hat/Yeehaw./false/true//Cowboy Hat"})
-    write_json(data / "Strings" / "Objects.json", {
-        "Clay_Name": "Clay", "Parsnip_Name": "Parsnip", "Wine_Name": "Wine",
-        "Wine_Flavored_Name": "{0} Wine"})
-    write_json(data / "Strings" / "Objects.fr-FR.json", {
-        "Clay_Name": "Argile", "Parsnip_Name": "Panais", "Wine_Name": "Vin",
-        "Wine_Flavored_Name": "Vin de {0}"})
-    write_json(data / "Strings" / "Objects.pt-BR.json", {"Clay_Name": "Argila"})
-    write_json(data / "Strings" / "BigCraftables.json", {"Chest_Name": "Chest"})
-    write_json(data / "Strings" / "Tools.json", {"Axe_Name": "Axe"})
-    write_json(data / "Strings" / "Tools.fr-FR.json", {"Axe_Name": "Hache"})
-    write_json(data / "Strings" / "Weapons.fr-FR.json", {"Scythe_Name": "Faux"})
-    write_json(data / "Strings" / "Weapons.json", {"Scythe_Name": "Scythe"})
-    write_json(data / "Strings" / "Pants.json", {"FarmerPants_Name": "Farmer Pants"})
-    return game
 
 
 def item(kind, item_id, **tags):

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from lxml import etree
 
-from . import xmlio
+from . import items, xmlio
 from .constants import (
     SKILLS, XP_FOR_LEVEL, QUALITIES, POINTS_PER_HEART, MAX_FRIENDSHIP_POINTS,
     BACKPACK_SIZES, XSI,
@@ -52,7 +52,7 @@ def _name(value, field):
     return value
 
 
-def _bounded(value, low, high, field, **extra):
+def bounded(value, low, high, field, **extra):
     """field: key of the field name; extra: parameters of that name (e.g. the villager)."""
     try:
         value = int(value)
@@ -161,7 +161,7 @@ class SaveGame:
         }
 
     def set_golden_walnuts(self, value):
-        _set(self.root, "goldenWalnuts", _bounded(value, 0, 130, "field.golden_walnuts"))
+        _set(self.root, "goldenWalnuts", bounded(value, 0, 130, "field.golden_walnuts"))
 
     # ------------------------------------------------------------------ names
     def rename_farm(self, new_name):
@@ -201,14 +201,14 @@ class SaveGame:
     # ------------------------------------------------------------------ stats
     def update_stats(self, uid, form):
         """form: dictionary of the fields sent by the UI."""
-        money = _bounded(form["money"], 0, 99_999_999, "field.money")
+        money = bounded(form["money"], 0, 99_999_999, "field.money")
         values = {
-            "qiGems": _bounded(form["qi_gems"], 0, 99_999, "field.qi_gems"),
-            "clubCoins": _bounded(form["club_coins"], 0, 99_999_999, "field.club_coins"),
-            "maxStamina": _bounded(form["max_stamina"], 270, 508, "field.max_stamina"),
-            "maxHealth": _bounded(form["max_health"], 100, 300, "field.max_health"),
+            "qiGems": bounded(form["qi_gems"], 0, 99_999, "field.qi_gems"),
+            "clubCoins": bounded(form["club_coins"], 0, 99_999_999, "field.club_coins"),
+            "maxStamina": bounded(form["max_stamina"], 270, 508, "field.max_stamina"),
+            "maxHealth": bounded(form["max_health"], 100, 300, "field.max_health"),
         }
-        max_items = _bounded(form["max_items"], 12, 36, "field.max_items")
+        max_items = bounded(form["max_items"], 12, 36, "field.max_items")
         if max_items not in BACKPACK_SIZES:
             raise SaveError("error.backpack_size")
         values["maxItems"] = max_items
@@ -251,7 +251,7 @@ class SaveGame:
             for idx, tag, skill_id in SKILLS:
                 if idx not in levels:
                     continue
-                level = _bounded(levels[idx], 0, 10, f"skill.{skill_id}")
+                level = bounded(levels[idx], 0, 10, f"skill.{skill_id}")
                 old = _int(el, tag)
                 if level == old:
                     continue
@@ -287,45 +287,89 @@ class SaveGame:
             for item in el.find("friendshipData"):
                 npc = item.findtext("key/string")
                 if npc in points_by_npc:
-                    value = _bounded(points_by_npc[npc], 0, MAX_FRIENDSHIP_POINTS,
+                    value = bounded(points_by_npc[npc], 0, MAX_FRIENDSHIP_POINTS,
                                      "field.friendship", npc=npc)
                     _set(item.find("value/Friendship"), "Points", value)
 
     # ------------------------------------------------------------------ inventory
-    def inventory(self, uid, namer=None):
+    def inventory(self, uid, describe=None):
         """Inventory slots of a player.
 
-        namer: optional function giving an item element's display name (from the
-        game data, in the UI language), or None to keep the save's own name.
+        describe: optional function giving extra fields for an item element
+        (translated "name", "icon", "tool_levels"… from the game data).
         """
         slots = []
         for i, it in enumerate(self._player(uid).find("items")):
-            if it.get(XSI + "nil") == "true":
+            if items.is_empty(it):
                 slots.append({"slot": i, "empty": True})
                 continue
             kind = it.get(XSI + "type") or "Item"
-            slots.append({
+            slot = {
                 "slot": i, "empty": False, "type": kind,
-                "name": (namer(it) if namer else None) or it.findtext("name") or "?",
+                "name": it.findtext("name") or "?",
                 "item_id": it.findtext("itemId") or "",
                 "stack": _int(it, "stack", 1),
                 "quality": _int(it, "quality"),
-                # Tools and weapons have no editable quantity or quality
+                "upgrade_level": _int(it, "upgradeLevel", -1),
+                # Tools and weapons have no quantity or quality
                 "editable": kind == "Object",
-            })
+                "has_quality": kind == "Object" and it.findtext("bigCraftable") != "true",
+            }
+            extra = describe(it) if describe else {}
+            slot.update({k: v for k, v in extra.items() if v is not None})
+            slots.append(slot)
         return slots
 
-    def set_inventory(self, uid, changes):
-        """changes: {slot: {"stack": n, "quality": q}} for plain objects."""
+    def _slots(self, uid, slot):
+        """The item lists of every copy of the player, after checking the slot exists."""
+        lists = [el.find("items") for el in self._copies(uid)]
+        if not 0 <= slot < len(lists[0]):
+            raise SaveError("error.no_slot", slot=slot + 1)
+        return lists
+
+    def set_inventory(self, uid, changes, tool_levels=None, gamedata=None):
+        """changes: {slot: {"stack": n, "quality": q}} for plain objects.
+        tool_levels: {slot: level} for upgradable tools (needs gamedata).
+        """
         for el in self._copies(uid):
-            items = list(el.find("items"))
+            slots = list(el.find("items"))
             for slot, change in changes.items():
-                it = items[slot]
+                it = slots[slot]
                 if it.get(XSI + "type") != "Object":
                     continue
                 name = it.findtext("name")
-                _set(it, "stack", _bounded(change["stack"], 1, 999, "field.quantity", item=name))
-                quality = _bounded(change["quality"], 0, 4, "field.quality", item=name)
+                _set(it, "stack", bounded(change["stack"], 1, 999, "field.quantity", item=name))
+                if it.findtext("bigCraftable") == "true":
+                    continue  # machines have no quality
+                quality = bounded(change["quality"], 0, 4, "field.quality", item=name)
                 if quality not in QUALITIES:
                     raise SaveError("error.unknown_quality", item=name)
                 _set(it, "quality", quality)
+            for slot, level in (tool_levels or {}).items():
+                it = slots[slot]
+                level = bounded(level, 0, 4, "field.tool_level", item=it.findtext("name"))
+                if _int(it, "upgradeLevel", -1) != level:
+                    items.set_tool_level(it, gamedata, level)
+
+    def add_item(self, uid, slot, element):
+        """Puts a new item element in an empty slot."""
+        lists = self._slots(uid, slot)
+        if not items.is_empty(lists[0][slot]):
+            raise SaveError("error.slot_taken", slot=slot + 1)
+        for i, slots in enumerate(lists):
+            slots.replace(slots[slot], element if i == 0 else items.copy_for(element))
+
+    def remove_item(self, uid, slot):
+        """Empties a slot; the item is gone."""
+        for slots in self._slots(uid, slot):
+            slots.replace(slots[slot], items.empty_slot())
+
+    def move_item(self, uid, source, target):
+        """Moves an item to another slot, swapping with what is there."""
+        self._slots(uid, target)
+        for slots in self._slots(uid, source):
+            a, b = slots[source], slots[target]
+            placeholder = items.empty_slot()
+            slots.replace(a, placeholder)
+            slots.replace(b, a)
+            slots.replace(placeholder, b)
