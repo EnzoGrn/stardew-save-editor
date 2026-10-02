@@ -2,6 +2,6 @@
 from .savegame import SaveGame
 from .errors import SaveError, SaveChangedError, NotFound
 from .paths import default_saves_dir, list_saves
-from . import backup
+from . import backup, gamefolder
 
-__all__ = ["SaveGame", "SaveError", "SaveChangedError", "NotFound", "default_saves_dir", "list_saves", "backup"]
+__all__ = ["SaveGame", "SaveError", "SaveChangedError", "NotFound", "default_saves_dir", "list_saves", "backup", "gamefolder"]

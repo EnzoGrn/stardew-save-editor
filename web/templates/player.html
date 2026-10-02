@@ -61,6 +61,9 @@
 
 <section id="inventory">
 <h2>{{ t('inventory.title') }}</h2>
+{% if not has_game_data %}
+<p class="note standalone">{{ t('inventory.no_game_data') }} <a href="{{ url_for('index') }}#game-data">{{ t('inventory.enable_game_data') }}</a></p>
+{% endif %}
 <form method="post" action="{{ url_for('set_inventory', save_id=farm.id, uid=p.uid) }}">
 <ol class="inventory">
 {% for it in inventory %}
@@ -75,7 +78,8 @@
         {% for q in QUALITIES %}<option value="{{ q }}" {% if q == it.quality %}selected{% endif %}>{{ t('quality.' ~ q) }}</option>{% endfor %}
       </select>
     {% else %}
-      <span class="muted">{{ t('item_type.' ~ it.type, default=it.type) }}</span>
+      {% set type_label = t('item_type.' ~ it.type, default=it.type) %}
+      {% if type_label|lower != it.name|lower %}<span class="muted">{{ type_label }}</span>{% endif %}
     {% endif %}
   {% endif %}
   </li>

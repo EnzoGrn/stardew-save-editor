@@ -185,3 +185,17 @@ td a { color: var(--ink); font-weight: 800; }
 .folder summary { cursor: pointer; color: #7b6146; width: fit-content; }
 .folder details .inline-form { margin-top: .6rem; }
 button:disabled { opacity: .7; cursor: progress; }
+.note.standalone { margin: 0 0 1rem; }
+.note a { color: var(--wood-dark); font-weight: 800; }
+
+/* Game data */
+.game-status { font-weight: 800; margin: 0 0 1rem; }
+.status-ready { color: var(--leaf); }
+.status-missing, .status-outdated, .status-no_game { color: #9a6a00; }
+.game-actions { display: flex; flex-wrap: wrap; gap: .8rem; align-items: center; }
+.game-actions form { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem 1rem; }
+button.secondary { background: var(--parchment-deep); }
+button.secondary:hover { background: #f3dba6; }
+.job { margin: 0 0 1rem; max-width: 40rem; }
+.job progress { width: 100%; height: 1.1rem; accent-color: var(--leaf); }
+.job-message { margin: .3rem 0 0; }

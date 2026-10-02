@@ -9,12 +9,17 @@ import sys
 from pathlib import Path
 
 
-def _file():
+def app_dir():
+    """The app's own folder in the user's config folder (settings, downloaded tools)."""
     if sys.platform.startswith("win"):
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     else:
         base = Path.home() / ".config"
-    return base / "StardewSaveManager" / "settings.json"
+    return base / "StardewSaveManager"
+
+
+def _file():
+    return app_dir() / "settings.json"
 
 
 def load():

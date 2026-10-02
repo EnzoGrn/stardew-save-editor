@@ -2,13 +2,14 @@
 import re
 from pathlib import Path
 
-from flask import Flask, abort, flash, g, redirect, render_template, request, url_for
+from flask import Flask, abort, flash, g, jsonify, redirect, render_template, request, url_for
 
-from sdvsave import SaveGame, SaveError, backup, default_saves_dir, list_saves
+from sdvsave import SaveGame, SaveError, backup, default_saves_dir, gamefolder, list_saves
 from sdvsave.constants import QUALITIES, POINTS_PER_HEART, MAX_FRIENDSHIP_POINTS, BACKPACK_SIZES
+from sdvsave.gamedata import GameData, find_data_dir
 from sdvsave.paths import backups_root, is_save_folder
 
-from . import i18n, picker, settings
+from . import i18n, picker, settings, unpacker
 
 app = Flask(__name__)
 app.secret_key = "stardew-save-manager-local"
@@ -22,7 +23,20 @@ def initial_saves_dir():
     return str(default_saves_dir())
 
 
+def initial_game_dir():
+    """The remembered game folder if it is still valid, otherwise one found on disk."""
+    remembered = settings.load().get("game_dir")
+    if remembered and gamefolder.is_game_dir(remembered):
+        return remembered
+    detected = gamefolder.detect_game_dir()
+    return str(detected) if detected else None
+
+
 app.config["SAVES_DIR"] = initial_saves_dir()
+app.config["GAME_DIR"] = initial_game_dir()
+
+unpack_job = unpacker.Job()
+_game_data_cache = {"key": None, "data": None}
 
 
 # --------------------------------------------------------------------- language
@@ -69,6 +83,22 @@ def set_language():
 # --------------------------------------------------------------------- helpers
 def saves_dir():
     return Path(app.config["SAVES_DIR"])
+
+
+def game_dir():
+    return Path(app.config["GAME_DIR"]) if app.config["GAME_DIR"] else None
+
+
+def game_data():
+    """The game data of the current game folder, or None; reloaded when it changes."""
+    data_dir = find_data_dir(game_dir())
+    if data_dir is None:
+        return None
+    objects = data_dir / "Data" / "Objects.json"
+    key = (str(data_dir), objects.stat().st_mtime)
+    if _game_data_cache["key"] != key:
+        _game_data_cache.update(key=key, data=GameData(data_dir))
+    return _game_data_cache["data"]
 
 
 def save_folder(save_id):
@@ -123,7 +153,9 @@ def index():
         use_saves_dir(request.form.get("saves_dir", "").strip().strip('"'))
         return redirect(url_for("index"))
     return render_template("index.html", saves=list_saves(saves_dir()),
-                           saves_dir=saves_dir(), exists=saves_dir().is_dir())
+                           saves_dir=saves_dir(), exists=saves_dir().is_dir(),
+                           game_dir=game_dir(), game_status=gamefolder.data_status(game_dir()),
+                           job=unpack_job.state(), job_running=unpack_job.running())
 
 
 @app.post("/pick-saves-dir")
@@ -139,6 +171,52 @@ def pick_saves_dir():
     return redirect(url_for("index"))
 
 
+def use_game_dir(chosen):
+    found = gamefolder.resolve_game_dir(Path(chosen).expanduser())
+    if found is None:
+        flash(t("error.not_game_folder", path=chosen), "error")
+        return
+    app.config["GAME_DIR"] = str(found)
+    settings.save(game_dir=str(found))
+    flash(t("flash.game_folder_updated", path=found), "ok")
+
+
+@app.post("/game-folder")
+def set_game_dir():
+    """Game folder typed by hand."""
+    use_game_dir(request.form.get("game_dir", "").strip().strip('"'))
+    return redirect(url_for("index") + "#game-data")
+
+
+@app.post("/pick-game-dir")
+def pick_game_dir():
+    try:
+        chosen = picker.ask_directory(initial=game_dir() or "", title=t("picker.game_title"))
+    except picker.PickerUnavailable as exc:
+        flash(t(exc.key), "error")
+        return redirect(url_for("index") + "#game-data")
+    if chosen:
+        use_game_dir(chosen)
+    return redirect(url_for("index") + "#game-data")
+
+
+@app.post("/game-data/prepare")
+def prepare_game_data():
+    if not gamefolder.is_game_dir(game_dir()):
+        flash(t("error.not_game_folder", path=game_dir() or ""), "error")
+    elif not unpack_job.start(game_dir(), settings.app_dir() / "tools"):
+        flash(t("error.unpack_busy"), "error")
+    return redirect(url_for("index") + "#game-data")
+
+
+@app.get("/game-data/status")
+def game_data_status():
+    """Polled by the home page while the game data is being prepared."""
+    state = unpack_job.state()
+    return jsonify(step=state["step"], percent=state["percent"],
+                   running=unpack_job.running(), message=t(f"unpack.step.{state['step']}"))
+
+
 @app.route("/save/<save_id>")
 def farm(save_id):
     sg = load(save_id)
@@ -152,9 +230,11 @@ def player(save_id, uid):
         p = sg.player(uid)
     except KeyError:
         abort(404)
+    data, lang = game_data(), current_lang()
+    namer = (lambda element: data.item_name(element, lang)) if data else None
     return render_template("player.html", farm=sg.farm(), players=sg.players(), p=p,
-                           inventory=sg.inventory(uid), friendships=sg.friendships(uid),
-                           tab=uid)
+                           inventory=sg.inventory(uid, namer), friendships=sg.friendships(uid),
+                           has_game_data=data is not None, tab=uid)
 
 
 @app.route("/save/<save_id>/backups")

@@ -30,9 +30,9 @@
 <section class="folder">
   <h2>{{ t('folder.title') }}</h2>
   <p class="folder-path"><code>{{ saves_dir }}</code></p>
-  <form method="post" action="{{ url_for('pick_saves_dir') }}" id="pick-form">
-    <button id="pick-button" data-busy-text="{{ t('folder.picking') }}">{{ t('folder.pick') }}</button>
-    <span class="muted" id="pick-hint" hidden>{{ t('folder.pick_hint') }}</span>
+  <form method="post" action="{{ url_for('pick_saves_dir') }}" class="pick-form">
+    <button data-busy-text="{{ t('folder.picking') }}">{{ t('folder.pick') }}</button>
+    <span class="muted pick-hint" hidden>{{ t('folder.pick_hint') }}</span>
   </form>
   <details>
     <summary>{{ t('folder.manual') }}</summary>
@@ -43,13 +43,73 @@
   </details>
 </section>
 
+<section class="folder" id="game-data">
+  <h2>{{ t('game.title') }}</h2>
+  <p class="help">{{ t('game.help') }}</p>
+
+  {% if game_dir %}
+    <p class="folder-path"><code>{{ game_dir }}</code></p>
+  {% endif %}
+  <p class="game-status status-{{ game_status }}">{{ t('game.status.' ~ game_status) }}</p>
+
+  {% if job_running or job.step in ('done', 'failed') %}
+  <div class="job" id="job" data-status-url="{{ url_for('game_data_status') }}"
+       data-running="{{ 'true' if job_running else 'false' }}">
+    <progress max="100" value="{{ job.percent }}" aria-label="{{ t('game.progress') }}"></progress>
+    <p class="job-message">
+      {% if job.step == 'failed' %}<span class="error-text">{{ t(job.error, **job.params) }}</span>
+      {% else %}{{ t('unpack.step.' ~ job.step) }}{% endif %}
+    </p>
+  </div>
+  {% endif %}
+
+  <div class="game-actions">
+    {% if game_status in ('missing', 'outdated') and not job_running %}
+    <form method="post" action="{{ url_for('prepare_game_data') }}"
+          data-confirm="{{ t('game.prepare_confirm', path=game_dir) }}">
+      <button>{{ t('game.prepare_again') if game_status == 'outdated' else t('game.prepare') }}</button>
+    </form>
+    {% endif %}
+    <form method="post" action="{{ url_for('pick_game_dir') }}" class="pick-form">
+      <button class="secondary" data-busy-text="{{ t('folder.picking') }}">{{ t('game.pick') }}</button>
+      <span class="muted pick-hint" hidden>{{ t('folder.pick_hint') }}</span>
+    </form>
+  </div>
+  <details>
+    <summary>{{ t('game.manual') }}</summary>
+    <p class="note standalone">{{ t('game.manual_help') }}</p>
+    <form method="post" action="{{ url_for('set_game_dir') }}" class="inline-form">
+      <input aria-label="{{ t('game.manual_label') }}" name="game_dir" value="{{ game_dir or '' }}" size="60">
+      <button>{{ t('folder.manual_submit') }}</button>
+    </form>
+  </details>
+</section>
+
 <script>
 // The page waits while the file explorer window is open: show that it's busy
-document.getElementById('pick-form').addEventListener('submit', () => {
-  const btn = document.getElementById('pick-button');
-  btn.disabled = true;
-  btn.textContent = btn.dataset.busyText;
-  document.getElementById('pick-hint').hidden = false;
-});
+document.querySelectorAll('.pick-form').forEach(form =>
+  form.addEventListener('submit', () => {
+    const btn = form.querySelector('button');
+    btn.disabled = true;
+    btn.textContent = btn.dataset.busyText;
+    form.querySelector('.pick-hint').hidden = false;
+  }));
+
+// While game data is being prepared, follow the job and reload once it ends
+const job = document.getElementById('job');
+if (job && job.dataset.running === 'true') {
+  const bar = job.querySelector('progress');
+  const message = job.querySelector('.job-message');
+  const poll = async () => {
+    try {
+      const state = await (await fetch(job.dataset.statusUrl)).json();
+      bar.value = state.percent;
+      message.textContent = state.message;
+      if (!state.running) { location.reload(); return; }
+    } catch (e) { /* server busy: try again */ }
+    setTimeout(poll, 1000);
+  };
+  poll();
+}
 </script>
 {% endblock %}

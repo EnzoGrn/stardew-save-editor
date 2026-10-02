@@ -292,7 +292,12 @@ class SaveGame:
                     _set(item.find("value/Friendship"), "Points", value)
 
     # ------------------------------------------------------------------ inventory
-    def inventory(self, uid):
+    def inventory(self, uid, namer=None):
+        """Inventory slots of a player.
+
+        namer: optional function giving an item element's display name (from the
+        game data, in the UI language), or None to keep the save's own name.
+        """
         slots = []
         for i, it in enumerate(self._player(uid).find("items")):
             if it.get(XSI + "nil") == "true":
@@ -301,7 +306,7 @@ class SaveGame:
             kind = it.get(XSI + "type") or "Item"
             slots.append({
                 "slot": i, "empty": False, "type": kind,
-                "name": it.findtext("name") or "?",
+                "name": (namer(it) if namer else None) or it.findtext("name") or "?",
                 "item_id": it.findtext("itemId") or "",
                 "stack": _int(it, "stack", 1),
                 "quality": _int(it, "quality"),
