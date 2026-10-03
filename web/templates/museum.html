@@ -45,7 +45,7 @@
     <label><span class="field-label">{{ t('museum.give_back') }}</span>
       <span class="field-hint">{{ t('museum.give_back_hint') }}</span>
       <select name="give_to">
-        {% for pl in receivers %}<option value="{{ pl.uid }}">{{ t('museum.to_inventory', name=pl.name) }}</option>{% endfor %}
+        {% for pl in receivers %}<option value="{{ pl.uid }}" {% if pl.full %}disabled{% endif %}>{{ t('museum.to_inventory', name=pl.name) }}{% if pl.full %} {{ t('inventory.full_short') }}{% endif %}</option>{% endfor %}
         <option value="">{{ t('museum.discard') }}</option>
       </select></label>
   </div>

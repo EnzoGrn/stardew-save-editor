@@ -356,7 +356,6 @@
   "chests.count.one": "{n} contenant",
   "chests.count.other": "{n} contenants",
   "chests.fridge": "Réfrigérateur",
-  "chests.home_of_vowel": "Maison d'{name}",
   "chests.home_of": "Maison de {name}",
   "chests.tile": "case {x}, {y}",
   "chests.fill": "{count} cases sur {capacity}",
@@ -396,5 +395,6 @@
   "location.Greenhouse": "Serre",
   "location.IslandWest": "Île Gingembre, ouest",
   "location.IslandFarmHouse": "Maison de l'île Gingembre",
-  "location.Cellar": "Cave"
+  "location.Cellar": "Cave",
+  "inventory.full_short": "(inventaire plein)"
 }

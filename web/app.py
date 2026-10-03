@@ -414,6 +414,11 @@ def search_items():
                             for qualified, name in results])
 
 
+def receivers(sg, players):
+    """Every farmer who can be given an item, marked full when no inventory slot is free."""
+    return [{**p, "full": sg.first_free_item_slot(p["uid"]) is None} for p in players]
+
+
 # ---------------------------------------------------------------------- chests
 def chest_view(chest, data):
     """A container as listed: where it is, in words, and its icon."""
@@ -424,9 +429,7 @@ def chest_view(chest, data):
         qualified = f"BC:{chest['item_id']}"
         title = data.display_name(qualified, lang) if data and qualified in data.items else chest["name"]
     if chest["owner"] and chest["building"] in (None, "Cabin") and chest["location"] in ("FarmHouse", "Cabin"):
-        # French elides "de" before a vowel ("Maison d'Aboobakar"): a key for names starting with one
-        vowel = re.match(r"[aeiouyhàâäéèêëîïôöûüAEIOUYHÀÂÄÉÈÊËÎÏÔÖÛÜ]", chest["owner"])
-        place = t("chests.home_of_vowel" if vowel else "chests.home_of", name=chest["owner"])
+        place = t("chests.home_of", name=chest["owner"])
     elif chest["building"]:
         place = t("building." + chest["building"], default=chest["building"])
     else:
@@ -451,7 +454,7 @@ def chests(save_id):
     players = sg.players()
     return render_template("chests.html", farm=sg.farm(), players=players, groups=groups, opened=opened,
                            contents=contents, has_game_data=data is not None,
-                           receivers=[p for p in players if sg.first_free_item_slot(p["uid"]) is not None],
+                           receivers=receivers(sg, players),
                            tab="chests")
 
 
@@ -582,7 +585,7 @@ def museum(save_id):
     donated = {c["piece"]["item_id"] for c in view["cells"] if c["piece"]}
     players = sg.players()
     return render_template("museum.html", farm=sg.farm(), players=players, museum=view,
-                           receivers=[p for p in players if sg.first_free_item_slot(p["uid"]) is not None],
+                           receivers=receivers(sg, players),
                            to_donate=donatable_in_inventories(sg, data, donated) if view["free"] else [],
                            has_game_data=data is not None, tab="museum")
 

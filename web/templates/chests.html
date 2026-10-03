@@ -23,7 +23,7 @@
     <label for="remove-to">{{ t('chests.remove_to') }}</label>
     <select id="remove-to">
       <option value="">{{ t('chests.discard') }}</option>
-      {% for pl in receivers %}<option value="{{ pl.uid }}">{{ t('chests.to_inventory', name=pl.name) }}</option>{% endfor %}
+      {% for pl in receivers %}<option value="{{ pl.uid }}" {% if pl.full %}disabled{% endif %}>{{ t('chests.to_inventory', name=pl.name) }}{% if pl.full %} {{ t('inventory.full_short') }}{% endif %}</option>{% endfor %}
     </select>
   </div>
   <ol class="inventory chest-items">

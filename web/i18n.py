@@ -11,6 +11,7 @@ Conventions in the files:
   - {param}       : value inserted into the sentence
 """
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -64,10 +65,24 @@ def translate(lang, key, default=None, **params):
     plain = {k: v for k, v in params.items() if not isinstance(v, T)}
     params = {k: translate(lang, v, **plain) if isinstance(v, T) else v
               for k, v in params.items()}
+    text = _elide(lang, text, params)
     try:
         return text.format(**params)
     except (KeyError, IndexError, ValueError):
         return text  # a badly written translation must not crash the page
+
+
+_VOWEL_START = re.compile(r"[aeiouyhàâäéèêëîïôöûüœ]", re.IGNORECASE)
+
+
+def _elide(lang, text, params):
+    """French elides "de" before a vowel: "Maison de {name}" with Aboobakar → "Maison d'Aboobakar"."""
+    if lang != "fr":
+        return text
+    for name, value in params.items():
+        if isinstance(value, str) and not isinstance(value, T) and _VOWEL_START.match(value):
+            text = re.sub(r"\b([dD])e \{" + re.escape(name) + r"\}", r"\1'{" + name + "}", text)
+    return text
 
 
 def translate_error(lang, exc):

@@ -356,7 +356,6 @@
   "chests.count.one": "{n} container",
   "chests.count.other": "{n} containers",
   "chests.fridge": "Fridge",
-  "chests.home_of_vowel": "{name}'s house",
   "chests.home_of": "{name}'s house",
   "chests.tile": "tile {x}, {y}",
   "chests.fill": "{count} of {capacity} slots",
@@ -396,5 +395,6 @@
   "location.Greenhouse": "Greenhouse",
   "location.IslandWest": "Ginger Island, west",
   "location.IslandFarmHouse": "Ginger Island farmhouse",
-  "location.Cellar": "Cellar"
+  "location.Cellar": "Cellar",
+  "inventory.full_short": "(inventory full)"
 }
