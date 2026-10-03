@@ -768,3 +768,139 @@ class SaveGame:
         element = self.remove_from_chest(key, index)
         element.tail = None
         self.add_item(uid, slot, element)
+
+    # ------------------------------------------------------------------ animals
+    # Farm animals live in a location's <animals> (an animal house, or the farm itself for
+    # animals left outside), keyed by their <myID>. 1.6 saves write each animal twice in a
+    # location: in <animals> and again in <Animals><SerializableDictionaryOfInt64FarmAnimal>;
+    # both copies are kept identical. An animal house's building also lists its residents
+    # (<animalsThatLiveHere>) and counts them (<currentOccupants>, up to <maxOccupants>).
+    MAX_ANIMAL_FRIENDSHIP = 1000  # 5 hearts of 200 points
+    MAX_ANIMAL_HAPPINESS = 255
+
+    def _animal_lists(self, location):
+        """Both dictionaries of animals of a location (the second may be missing)."""
+        lists = [location.find("animals")]
+        second = location.find("Animals/SerializableDictionaryOfInt64FarmAnimal")
+        if second is not None:
+            lists.append(second)
+        return [l for l in lists if l is not None]
+
+    def _animal_places(self):
+        """(key, location, building or None) for animal houses, and the farm (animals outside)."""
+        for key, location, building in self._locations():
+            if location.get(XSI + "type") == "AnimalHouse" or (building is None and key == "Farm"):
+                yield key, location, building
+
+    @staticmethod
+    def _house_kind(location, building):
+        """"Coop" or "Barn": the kind of animal a house takes (buildingTypeILiveIn of its animals).
+
+        Taken from an animal living there, else from the building type ("Big Coop" → "Coop"),
+        as Data/Buildings.json lets each coop or barn level take that kind of animal.
+        """
+        resident = location.findtext("animals/item/value/FarmAnimal/buildingTypeILiveIn")
+        if resident:
+            return resident
+        building_type = building.findtext("buildingType") or ""
+        return next((kind for kind in ("Coop", "Barn") if kind in building_type), building_type)
+
+    def animal_homes(self):
+        """Animal houses: key, building type, residents and capacity."""
+        homes = []
+        for key, location, building in self._animal_places():
+            if building is None:
+                continue
+            homes.append({"key": key, "building": building.findtext("buildingType"),
+                          "kind": self._house_kind(location, building),
+                          "count": len(location.find("animals")), "capacity": _int(building, "maxOccupants")})
+        return homes
+
+    def animals(self):
+        """Every farm animal: id, name, type, friendship, happiness, where it is."""
+        owners = {el.findtext("UniqueMultiplayerID"): el.findtext("name") for el, _ in self._farmers()}
+        result = []
+        for key, location, building in self._animal_places():
+            for item in location.find("animals"):
+                animal = item.find("value/FarmAnimal")
+                if animal is None:
+                    continue
+                result.append({
+                    "id": animal.findtext("myID") or item.findtext("key/long"),
+                    "name": animal.findtext("name") or "",
+                    "type": animal.findtext("type") or "",
+                    "lives_in": animal.findtext("buildingTypeILiveIn") or "",
+                    "friendship": _int(animal, "friendshipTowardFarmer"),
+                    "happiness": _int(animal, "happiness"),
+                    "age": _int(animal, "age"),
+                    "owner": owners.get(animal.findtext("ownerID")),
+                    "home": key, "outside": building is None,
+                })
+        return result
+
+    def _animal_entries(self, animal_id):
+        """(location key, location, building, [entry in each copy]) of an animal."""
+        for key, location, building in self._animal_places():
+            entries = [item for animals in self._animal_lists(location) for item in animals
+                       if item.findtext("key/long") == str(animal_id)]
+            if entries:
+                return key, location, building, entries
+        raise NotFound("error.no_animal")
+
+    def set_animals(self, changes):
+        """changes: {animal id: {"name", "friendship", "happiness"}} (any of them)."""
+        for animal_id, change in changes.items():
+            *_, entries = self._animal_entries(animal_id)
+            current = entries[0].find("value/FarmAnimal").findtext("name")
+            values = {}
+            if "name" in change:
+                name = _name(change["name"], "field.animal_name")
+                values["name"] = values["displayName"] = name
+            if "friendship" in change:
+                values["friendshipTowardFarmer"] = bounded(change["friendship"], 0, self.MAX_ANIMAL_FRIENDSHIP,
+                                                           "field.animal_friendship", animal=current)
+            if "happiness" in change:
+                values["happiness"] = bounded(change["happiness"], 0, self.MAX_ANIMAL_HAPPINESS,
+                                              "field.animal_happiness", animal=current)
+            for entry in entries:
+                animal = entry.find("value/FarmAnimal")
+                for tag, value in values.items():
+                    if animal.find(tag) is not None:
+                        _set(animal, tag, value)
+
+    def move_animal(self, animal_id, target_key):
+        """Moves an animal into another animal house of the same kind (coop or barn) with room."""
+        source_key, source, source_building, entries = self._animal_entries(animal_id)
+        target = next(((loc, b) for k, loc, b in self._animal_places() if k == target_key and b is not None), None)
+        if target is None:
+            raise SaveError("error.no_animal_home")
+        location, building = target
+        animal = entries[0].find("value/FarmAnimal")
+        name = animal.findtext("name")
+        if target_key == source_key:
+            return
+        if self._house_kind(location, building) != animal.findtext("buildingTypeILiveIn"):
+            raise SaveError("error.wrong_animal_home", animal=name, building=building.findtext("buildingType"))
+        if len(location.find("animals")) >= _int(building, "maxOccupants"):
+            raise SaveError("error.animal_home_full", building=building.findtext("buildingType"))
+        # Somewhere the game already put an animal of that house, so it doesn't start inside a wall
+        resident = location.find("animals/item/value/FarmAnimal/Position")
+        for target_list, entry in zip(self._animal_lists(location), entries):
+            entry.getparent().remove(entry)
+            entry.tail = None
+            if resident is not None:
+                position = entry.find("value/FarmAnimal/Position")
+                for axis in ("X", "Y"):
+                    _set(position, axis, resident.findtext(axis))
+            target_list.append(entry)
+        for house, home_building, add in ((source, source_building, False), (location, building, True)):
+            if home_building is None:
+                continue
+            residents = house.find("animalsThatLiveHere")
+            if residents is not None:
+                for node in [n for n in residents if n.text == str(animal_id)]:
+                    residents.remove(node)
+                if add:
+                    etree.SubElement(residents, "long").text = str(animal_id)
+            if home_building.find("currentOccupants") is not None:
+                _set(home_building, "currentOccupants", len(house.find("animals")))

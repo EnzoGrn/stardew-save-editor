@@ -307,3 +307,20 @@ h3 small { font: 400 .9rem var(--body); margin-left: .4rem; }
 .chest-editor h2 { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .chest-editor h2 small { font: 400 .95rem var(--body); }
 .chest-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .6rem; font-weight: 800; }
+
+/* Animals: one row per animal, by house */
+.animal-home { margin-bottom: 1.2rem; }
+.animal-list { list-style: none; margin: 0 0 .5rem; padding: 0; display: grid; gap: .4rem; }
+.animal { display: grid; grid-template-columns: 32px minmax(11rem, 1.4fr) repeat(3, minmax(7rem, 1fr)); align-items: center;
+  gap: .4rem .9rem; padding: .45rem .7rem; background: #fffaf0; border: 2px solid var(--parchment-deep); }
+.animal .icon-box { width: 32px; height: 32px; }
+.animal-main { display: grid; gap: .1rem; min-width: 0; }
+.animal-name { font-weight: 800; width: 100%; }
+.animal-stat { display: grid; gap: .1rem; font-weight: 400; }
+.animal-stat .field-label { font-size: .8rem; }
+.animal-stat input, .animal-stat select { width: 100%; }
+.animal .hearts { font-size: .85rem; letter-spacing: .05em; color: #c0392b; }
+@media (max-width: 760px) {
+  .animal { grid-template-columns: 32px 1fr 1fr; }
+  .animal-main { grid-column: 2 / -1; }
+}

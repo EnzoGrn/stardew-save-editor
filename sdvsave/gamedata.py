@@ -546,6 +546,26 @@ class GameData:
                 and "not_museum_donatable" not in (item["data"].get("ContextTags") or [])]
 
 
+    # ------------------------------------------------------------------ animals
+    def _animal_data(self):
+        """Data/FarmAnimals.json, read once (empty when missing)."""
+        if not hasattr(self, "_farm_animals"):
+            self._farm_animals = _read_json(self.data_dir / "Data" / "FarmAnimals.json") or {}
+        return self._farm_animals
+
+    def animal_icon(self, animal_type, lives_in=""):
+        """First frame (facing down) of an animal's sprite sheet, or None.
+
+        Data/FarmAnimals.json gives the texture and frame size; without it, the sheet is
+        Animals/<type> with 16 px frames for coop animals and 32 px for barn animals.
+        """
+        data = self._animal_data().get(animal_type) or {}
+        sheet = (data.get("Texture") or f"Animals\\{animal_type}").replace("\\", "/")
+        size = 16 if lives_in == "Coop" else 32
+        width, height = data.get("SpriteWidth") or size, data.get("SpriteHeight") or size
+        return self._icon_at(sheet, 0, width, height)
+
+
 def _tmx_layer_gids(data):
     """Tile ids of a TMX layer, whatever its encoding (csv, or base64 maybe compressed)."""
     if data is None:

@@ -505,6 +505,46 @@ def remove_from_chest(save_id):
     return _chest_back(save_id)
 
 
+# ---------------------------------------------------------------------- animals
+@app.route("/save/<save_id>/animals")
+def animals(save_id):
+    sg = load(save_id)
+    data = game_data()
+    homes = sg.animal_homes()
+    labels = {h["key"]: t("building." + h["building"], default=h["building"]) for h in homes}
+    groups = {h["key"]: {**h, "label": labels[h["key"]], "animals": []} for h in homes}
+    outside = []
+    for animal in sg.animals():
+        animal["icon"] = icon_style(data.animal_icon(animal["type"], animal["lives_in"]), fit=32) if data else None
+        animal["type_label"] = t("animal." + animal["type"], default=animal["type"])
+        # Where it can go: another house of its kind with room
+        animal["moves"] = [{"key": h["key"], "label": labels[h["key"]], "full": h["count"] >= h["capacity"]}
+                           for h in homes if h["kind"] == animal["lives_in"] and h["key"] != animal["home"]]
+        (groups[animal["home"]]["animals"] if animal["home"] in groups else outside).append(animal)
+    return render_template("animals.html", farm=sg.farm(), players=sg.players(), homes=list(groups.values()),
+                           outside=outside, max_friendship=sg.MAX_ANIMAL_FRIENDSHIP,
+                           max_happiness=sg.MAX_ANIMAL_HAPPINESS, tab="animals")
+
+
+@app.post("/save/<save_id>/animals")
+def set_animals(save_id):
+    changes, moves = {}, {}
+    for key, value in request.form.items():
+        field, _, animal_id = key.partition("__")
+        if field in ("name", "friendship", "happiness"):
+            changes.setdefault(animal_id, {})[field] = value
+        elif field == "move" and value:
+            moves[animal_id] = value
+
+    def change(sg):
+        sg.set_animals(changes)
+        for animal_id, target in moves.items():
+            sg.move_animal(animal_id, target)
+
+    edit(save_id, change, "flash.animals_saved")
+    return redirect(url_for("animals", save_id=save_id))
+
+
 # ---------------------------------------------------------------------- museum
 MUSEUM_SIZE = 95  # pieces in the game's museum, when no game data says otherwise
 
