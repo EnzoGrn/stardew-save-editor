@@ -12,11 +12,16 @@ In 1.6, most display names are tokens pointing into a strings file:
 which reads key "Clay_Name" from Strings/Objects.json, or from
 Strings/Objects.fr-FR.json for French.
 """
+import base64
+import gzip
 import json
 import re
 import struct
 import unicodedata
+import zlib
 from pathlib import Path
+
+from lxml import etree
 
 from .constants import XSI
 
@@ -42,7 +47,7 @@ _SLASH_FILES = {
     "F": ("Furniture", 0, 7),
 }
 
-# Save item class (xsi:type) > catalogue prefix
+# Save item class (xsi:type) → catalogue prefix
 _TOOL_TYPES = {"Axe", "Hoe", "Pickaxe", "WateringCan", "FishingRod", "Pan", "Shears",
                "MilkPail", "Wand", "GenericTool", "Lantern", "Raft"}
 _FURNITURE_TYPES = {"Furniture", "BedFurniture", "StorageFurniture", "TV",
@@ -121,11 +126,11 @@ class GameData:
 
     def __init__(self, data_dir):
         self.data_dir = Path(data_dir)
-        self.items = {}           # "O:330" > {"name", "display" (raw display name), "data"}
-        self._strings = {}        # (asset, lang suffix) > dict, loaded on demand
-        self._localized_data = {}  # (file, lang suffix) > dict, loaded on demand
-        self._sheet_sizes = {}    # sprite sheet > (width, height), read on demand
-        self._search_index = {}   # lang > [(folded text, qualified id)], built on demand
+        self.items = {}           # "O:330" → {"name", "display" (raw display name), "data"}
+        self._strings = {}        # (asset, lang suffix) → dict, loaded on demand
+        self._localized_data = {}  # (file, lang suffix) → dict, loaded on demand
+        self._sheet_sizes = {}    # sprite sheet → (width, height), read on demand
+        self._search_index = {}   # lang → [(folded text, qualified id)], built on demand
         self.languages = self._find_languages()
         self._load_items()
 
@@ -166,7 +171,7 @@ class GameData:
                     }
 
     def _suffix(self, lang):
-        """Strings file suffix for a UI language: "fr" > "fr-FR", English > ""."""
+        """Strings file suffix for a UI language: "fr" → "fr-FR", English → ""."""
         return self.languages.get((lang or "").lower(), "")
 
     def _strings_file(self, asset, suffix):
@@ -465,7 +470,7 @@ class GameData:
         return result[:limit]
 
     # ------------------------------------------------------------------ recipes
-    # Data/CookingRecipes.json and Data/CraftingRecipes.json: recipe name > "/"-separated
+    # Data/CookingRecipes.json and Data/CraftingRecipes.json: recipe name → "/"-separated
     # fields. The output item is field 2 ("id" or "id count", sometimes qualified like
     # "(BC)238"); crafting recipes say in field 3 whether it's a big craftable. An
     # optional display name comes last (field 4 for cooking, 5 for crafting);
@@ -498,3 +503,60 @@ class GameData:
                 or (self.display_name(output, lang) if output else None) or name
             result.append({"name": name, "display": display, "output": output})
         return sorted(result, key=lambda r: self._fold(r["display"]))
+
+    # ------------------------------------------------------------------ museum
+    # The museum's display tiles are the tiles of its map's "Buildings" layer drawn with
+    # these tiles of "untitled tile sheet" (LibraryMuseum.isTileSuitableForMuseumPiece).
+    MUSEUM_MAP = "Maps/ArchaeologyHouse.tmx"
+    MUSEUM_TILESHEET = "untitled tile sheet"
+    MUSEUM_DISPLAY_TILES = {1072, 1073, 1074, 1237, 1238}
+    # Items the game takes: objects of these types, unless tagged not donatable
+    MUSEUM_TYPES = ("Arch", "Minerals")
+
+    def museum_spots(self):
+        """Display tiles of the museum, as a set of (x, y); None when the map isn't there."""
+        try:
+            root = etree.parse(str(self.data_dir / self.MUSEUM_MAP)).getroot()
+        except (OSError, etree.XMLSyntaxError):
+            return None
+        first_gid = None
+        for tileset in root.findall("tileset"):
+            name = tileset.get("name")
+            if name is None and tileset.get("source"):  # external tileset file
+                try:
+                    name = etree.parse(str((self.data_dir / self.MUSEUM_MAP).parent / tileset.get("source"))) \
+                        .getroot().get("name")
+                except (OSError, etree.XMLSyntaxError):
+                    continue
+            if name == self.MUSEUM_TILESHEET:
+                first_gid = int(tileset.get("firstgid", "1"))
+        layer = next((l for l in root.iter("layer") if l.get("name") == "Buildings"), None)
+        if first_gid is None or layer is None:
+            return None
+        width = int(layer.get("width"))
+        gids = _tmx_layer_gids(layer.find("data"))
+        wanted = {first_gid + tile for tile in self.MUSEUM_DISPLAY_TILES}
+        return {(i % width, i // width) for i, gid in enumerate(gids) if gid & 0x1FFFFFFF in wanted}
+
+    def museum_items(self):
+        """Qualified ids of every item the museum takes."""
+        return [q for q, item in self.items.items()
+                if q.startswith("O:") and item["data"].get("Type") in self.MUSEUM_TYPES
+                and "not_museum_donatable" not in (item["data"].get("ContextTags") or [])]
+
+
+def _tmx_layer_gids(data):
+    """Tile ids of a TMX layer, whatever its encoding (csv, or base64 maybe compressed)."""
+    if data is None:
+        return []
+    text = (data.text or "").strip()
+    if data.get("encoding") == "csv":
+        return [int(v) for v in text.replace("\n", ",").split(",") if v.strip()]
+    if data.get("encoding") == "base64":
+        raw = base64.b64decode(text)
+        if data.get("compression") == "zlib":
+            raw = zlib.decompress(raw)
+        elif data.get("compression") == "gzip":
+            raw = gzip.decompress(raw)
+        return list(struct.unpack(f"<{len(raw) // 4}I", raw))
+    return [int(tile.get("gid", "0")) for tile in data.findall("tile")]  # plain XML

@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('museum.title') }} <small>{{ t('museum.count', count=museum.count, total=museum.total) }}</small></h1>
+{% if museum.kinds %}
+<p class="museum-kinds">{% for k in museum.kinds %}<span>{{ t('museum.kind_count.' ~ k.kind, count=k.count, total=k.total) }}</span>{% endfor %}</p>
+{% endif %}
+
+{% if not has_game_data %}
+<p class="note standalone">{{ t('museum.no_game_data') }} <a href="{{ url_for('index') }}#game-data">{{ t('inventory.enable_game_data') }}</a></p>
+{% elif not museum.has_map %}
+<p class="note standalone">{{ t('museum.no_map') }}</p>
+{% endif %}
+
+<section id="displays">
+<h2>{{ t('museum.displays') }}</h2>
+{% if museum.cells %}
+<p class="note standalone">{{ t('museum.move_hint') }}</p>
+<div class="museum-scroll">
+  <div class="museum-grid" data-min-x="{{ museum.min_x }}" data-min-y="{{ museum.min_y }}" data-move-form="donation-move">
+  {% for c in museum.cells %}
+    {% if c.piece %}
+    <button type="button" class="spot taken" data-x="{{ c.x }}" data-y="{{ c.y }}" draggable="true"
+            data-name="{{ c.piece.name }}" title="{{ c.piece.name }} ({{ c.x }}, {{ c.y }})"
+            aria-label="{{ c.piece.name }} ({{ c.x }}, {{ c.y }})">
+      {% if c.piece.icon %}<span class="sprite" data-icon="{{ c.piece.icon }}" aria-hidden="true"></span>
+      {% else %}<span class="spot-id">{{ c.piece.item_id }}</span>{% endif %}
+    </button>
+    {% else %}
+    <span class="spot free" data-x="{{ c.x }}" data-y="{{ c.y }}" title="{{ t('museum.free_spot') }} ({{ c.x }}, {{ c.y }})"></span>
+    {% endif %}
+  {% endfor %}
+  </div>
+</div>
+
+<form method="post" action="{{ url_for('move_donation', save_id=farm.id) }}" id="donation-move" hidden>
+  <input type="hidden" name="source_x"><input type="hidden" name="source_y">
+  <input type="hidden" name="target_x"><input type="hidden" name="target_y">
+</form>
+
+<form method="post" action="{{ url_for('remove_donation', save_id=farm.id) }}" class="piece-panel" hidden
+      data-confirm="{{ t('museum.confirm_remove') }}">
+  <input type="hidden" name="x"><input type="hidden" name="y">
+  <p class="chosen"><span class="sprite"></span><strong class="chosen-name"></strong> <span class="muted chosen-spot"></span></p>
+  <div class="fields">
+    <label><span class="field-label">{{ t('museum.give_back') }}</span>
+      <span class="field-hint">{{ t('museum.give_back_hint') }}</span>
+      <select name="give_to">
+        {% for pl in receivers %}<option value="{{ pl.uid }}">{{ t('museum.to_inventory', name=pl.name) }}</option>{% endfor %}
+        <option value="">{{ t('museum.discard') }}</option>
+      </select></label>
+  </div>
+  <p class="note standalone">{{ t('museum.rewards_note') }}</p>
+  <button>{{ t('museum.remove') }}</button>
+  <button type="button" class="secondary panel-close">{{ t('museum.cancel') }}</button>
+</form>
+{% else %}
+<p class="empty">{{ t('museum.empty') }}</p>
+{% endif %}
+</section>
+
+{% if to_donate %}
+<section id="donate">
+<h2>{{ t('museum.donate_title') }}</h2>
+<p class="note standalone">{{ t('museum.donate_hint') }}</p>
+<ul class="donate-list">
+{% for it in to_donate %}
+  <li>
+    <form method="post" action="{{ url_for('donate', save_id=farm.id) }}">
+      <input type="hidden" name="uid" value="{{ it.uid }}"><input type="hidden" name="slot" value="{{ it.slot }}">
+      {% if it.icon %}<span class="sprite" data-icon="{{ it.icon }}" aria-hidden="true"></span>{% endif %}
+      <span class="item-name">{{ it.name }}</span>
+      <small class="muted">{{ t('museum.from_inventory', name=it.player) }}</small>
+      <button class="secondary">{{ t('museum.donate') }}</button>
+    </form>
+  </li>
+{% endfor %}
+</ul>
+</section>
+{% endif %}
+
+{% if museum.missing %}
+<section id="missing">
+<h2>{{ t('museum.missing_title') }} <small class="muted">{{ museum.missing|length }}</small></h2>
+<ul class="missing-list">
+{% for m in museum.missing %}
+  <li>{% if m.icon %}<span class="sprite" data-icon="{{ m.icon }}" aria-hidden="true"></span>{% endif %}
+    <span>{{ m.name }}</span> <small class="muted">{{ t('museum.kind.' ~ m.kind, default=m.kind) }}</small></li>
+{% endfor %}
+</ul>
+</section>
+{% endif %}
+
+<script>
+document.querySelectorAll('[data-icon]').forEach(el => { el.style.cssText = el.dataset.icon; });
+
+// Display spots sit at their tile position in the museum (kept out of style attributes)
+const grid = document.querySelector('.museum-grid');
+if (grid) {
+  const minX = +grid.dataset.minX, minY = +grid.dataset.minY;
+  grid.querySelectorAll('.spot').forEach(spot => {
+    spot.style.gridColumn = +spot.dataset.x - minX + 1;
+    spot.style.gridRow = +spot.dataset.y - minY + 1;
+  });
+
+  // Drag a piece onto another display to move it there (swapping with the piece there)
+  const moveForm = document.getElementById(grid.dataset.moveForm);
+  let dragged = null;
+  grid.addEventListener('dragstart', e => {
+    dragged = e.target.closest('.spot.taken');
+    if (dragged) { dragged.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+  });
+  grid.addEventListener('dragend', () => {
+    grid.querySelectorAll('.dragging, .drop-target').forEach(el => el.classList.remove('dragging', 'drop-target'));
+  });
+  grid.addEventListener('dragover', e => {
+    const spot = e.target.closest('.spot');
+    if (dragged && spot && spot !== dragged) {
+      e.preventDefault();
+      grid.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+      spot.classList.add('drop-target');
+    }
+  });
+  grid.addEventListener('drop', e => {
+    const spot = e.target.closest('.spot');
+    if (!dragged || !spot || spot === dragged) return;
+    e.preventDefault();
+    moveForm.elements.source_x.value = dragged.dataset.x;
+    moveForm.elements.source_y.value = dragged.dataset.y;
+    moveForm.elements.target_x.value = spot.dataset.x;
+    moveForm.elements.target_y.value = spot.dataset.y;
+    moveForm.submit();
+  });
+
+  // Click a piece to take it off its display
+  const panel = document.querySelector('.piece-panel');
+  grid.querySelectorAll('.spot.taken').forEach(spot => spot.addEventListener('click', () => {
+    grid.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+    spot.classList.add('selected');
+    panel.elements.x.value = spot.dataset.x;
+    panel.elements.y.value = spot.dataset.y;
+    panel.querySelector('.chosen-name').textContent = spot.dataset.name;
+    panel.querySelector('.chosen-spot').textContent = `(${spot.dataset.x}, ${spot.dataset.y})`;
+    const icon = spot.querySelector('.sprite');
+    panel.querySelector('.sprite').style.cssText = icon ? icon.style.cssText : '';
+    panel.hidden = false;
+  }));
+  panel.querySelector('.panel-close').addEventListener('click', () => {
+    panel.hidden = true;
+    grid.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+  });
+}
+</script>
+{% endblock %}

@@ -10,6 +10,7 @@ from sdvsave.constants import QUALITIES, POINTS_PER_HEART, MAX_FRIENDSHIP_POINTS
 from sdvsave import appearance, items
 from sdvsave.constants import XSI
 from sdvsave.gamedata import GameData, find_data_dir
+from sdvsave.errors import T
 from sdvsave.savegame import bounded
 from sdvsave.paths import backups_root, is_save_folder
 
@@ -411,6 +412,150 @@ def search_items():
     results = data.search(request.args.get("q", ""), current_lang())
     return jsonify(results=[{"id": qualified, "name": name, "icon": icon_style(data.icon(qualified))}
                             for qualified, name in results])
+
+
+# ---------------------------------------------------------------------- museum
+MUSEUM_SIZE = 95  # pieces in the game's museum, when no game data says otherwise
+
+
+def _spot_arg(prefix=""):
+    try:
+        return int(request.form[prefix + "x"]), int(request.form[prefix + "y"])
+    except (KeyError, ValueError):
+        abort(400)
+
+
+def museum_view(sg, data):
+    """Every display spot of the museum (from its map, or the taken ones), with its piece."""
+    lang = current_lang()
+    pieces = sg.museum()
+    spots = data.museum_spots() if data else None
+    taken = {(p["x"], p["y"]): p for p in pieces}
+    cells = []
+    for x, y in sorted((spots or set()) | set(taken), key=lambda s: (s[1], s[0])):
+        piece = taken.get((x, y))
+        cell = {"x": x, "y": y, "piece": None}
+        if piece:
+            qualified = f"O:{piece['item_id']}"
+            known = data is not None and qualified in data.items
+            cell["piece"] = {
+                "item_id": piece["item_id"],
+                "name": data.display_name(qualified, lang) if known else piece["item_id"],
+                "icon": icon_style(data.icon(qualified)) if known else None,
+                "kind": data.items[qualified]["data"].get("Type") if known else None,
+            }
+        cells.append(cell)
+    view = {"cells": cells, "count": len(pieces), "has_map": spots is not None,
+            "total": MUSEUM_SIZE, "missing": [], "free": spots is not None and len(spots - set(taken)) > 0}
+    if cells:
+        view["min_x"], view["min_y"] = min(c["x"] for c in cells), min(c["y"] for c in cells)
+    if data:
+        donatable = data.museum_items()
+        # Fewer donatable items than donations would mean the game data isn't the save's
+        view["total"] = len(donatable) if len(donatable) >= len(pieces) else MUSEUM_SIZE
+        donated = {p["item_id"] for p in pieces}
+        # Per kind (artifacts, minerals): pieces donated out of the pieces the museum takes
+        view["kinds"] = [{"kind": kind, "count": sum(1 for q in donatable
+                                                      if q[2:] in donated and data.items[q]["data"].get("Type") == kind),
+                          "total": sum(1 for q in donatable if data.items[q]["data"].get("Type") == kind)}
+                         for kind in data.MUSEUM_TYPES] if len(donatable) >= len(pieces) else []
+        view["missing"] = sorted(({"id": q, "name": data.display_name(q, lang), "icon": icon_style(data.icon(q)),
+                                   "kind": data.items[q]["data"].get("Type")}
+                                  for q in donatable if q[2:] not in donated), key=lambda m: m["name"])
+    return view
+
+
+def donatable_in_inventories(sg, data, donated):
+    """Items in the farmers' inventories that the museum would take: [{uid, player, slot, name, icon}]."""
+    if not data:
+        return []
+    museum_ids = set(data.museum_items())
+    found = []
+    for player in sg.players():
+        for slot in sg.inventory(player["uid"]):
+            qualified = f"O:{slot.get('item_id')}"
+            if not slot["empty"] and slot["type"] == "Object" and qualified in museum_ids \
+                    and slot["item_id"] not in donated:
+                found.append({"uid": player["uid"], "player": player["name"], "slot": slot["slot"],
+                              "name": data.display_name(qualified, current_lang()),
+                              "icon": icon_style(data.icon(qualified))})
+    return found
+
+
+@app.route("/save/<save_id>/museum")
+def museum(save_id):
+    sg = load(save_id)
+    data = game_data()
+    try:
+        view = museum_view(sg, data)
+    except SaveError as exc:
+        flash(i18n.translate_error(current_lang(), exc), "error")
+        return redirect(url_for("farm", save_id=save_id))
+    donated = {c["piece"]["item_id"] for c in view["cells"] if c["piece"]}
+    players = sg.players()
+    return render_template("museum.html", farm=sg.farm(), players=players, museum=view,
+                           receivers=[p for p in players if sg.first_free_item_slot(p["uid"]) is not None],
+                           to_donate=donatable_in_inventories(sg, data, donated) if view["free"] else [],
+                           has_game_data=data is not None, tab="museum")
+
+
+@app.post("/save/<save_id>/museum/move")
+def move_donation(save_id):
+    data = game_data()
+    source, target = _spot_arg("source_"), _spot_arg("target_")
+    edit(save_id, lambda sg: sg.move_donation(source, target, data.museum_spots() if data else None),
+         "flash.donation_moved")
+    return redirect(url_for("museum", save_id=save_id))
+
+
+@app.post("/save/<save_id>/museum/remove")
+def remove_donation(save_id):
+    data = game_data()
+    spot = _spot_arg()
+    receiver = request.form.get("give_to", "")
+
+    def change(sg):
+        item_id = sg.remove_donation(spot)
+        name = data.display_name(f"O:{item_id}", current_lang()) if data and f"O:{item_id}" in data.items else item_id
+        if not receiver:
+            return {"name": name, "where": T("museum.discarded")}
+        if data is None:
+            raise SaveError("error.needs_game_data")
+        slot = sg.first_free_item_slot(receiver)
+        if slot is None:
+            raise SaveError("error.inventory_full", name=sg.player(receiver)["name"])
+        sg.add_item(receiver, slot, items.new_item(data, f"O:{item_id}"))
+        # "where" is translated with the other parameters: {player} inside it
+        return {"name": name, "where": T("museum.given_to"), "player": sg.player(receiver)["name"]}
+
+    edit(save_id, change, "flash.donation_removed")
+    return redirect(url_for("museum", save_id=save_id))
+
+
+@app.post("/save/<save_id>/museum/donate")
+def donate(save_id):
+    data = game_data()
+    if data is None or data.museum_spots() is None:
+        abort(400)
+    uid = request.form.get("uid", "")
+
+    def change(sg):
+        slot = _slot_arg("slot")
+        element = sg._slots(uid, slot)[0][slot]
+        qualified = data.qualified_id(element) if not items.is_empty(element) else None
+        if qualified not in data.museum_items():
+            raise SaveError("error.not_donatable")
+        spots = data.museum_spots()
+        taken = {(p["x"], p["y"]) for p in sg.museum()}
+        free = sorted(spots - taken, key=lambda s: (s[1], s[0]))
+        if not free:
+            raise SaveError("error.museum_full")
+        sg.donate(qualified[2:], free[0], spots)
+        sg.take_one(uid, slot)
+        return {"name": data.display_name(qualified, current_lang()), "x": free[0][0], "y": free[0][1]}
+
+    edit(save_id, change, "flash.donated")
+    return redirect(url_for("museum", save_id=save_id))
 
 
 @app.route("/save/<save_id>/backups")

@@ -40,6 +40,10 @@ def game(tmp_path):
         "24": {"Name": "Parsnip", "DisplayName": "[LocalizedText Strings\\Objects:Parsnip_Name]"},
         "348": {"Name": "Wine", "DisplayName": "[LocalizedText Strings\\Objects:Wine_Name]"},
         "999": {"Name": "Mystery", "DisplayName": "[LocalizedText Strings\\Objects:Missing_Name]"},
+        "96": {"Name": "Dwarf Scroll I", "Type": "Arch", "Category": 0, "Price": 1, "SpriteIndex": 96},
+        "97": {"Name": "Dwarf Scroll II", "Type": "Arch", "Category": 0, "Price": 1, "SpriteIndex": 97},
+        "80": {"Name": "Quartz", "Type": "Minerals", "Category": -2, "Price": 25, "SpriteIndex": 80},
+        "Fake": {"Name": "Display Only", "Type": "Arch", "ContextTags": ["not_museum_donatable"]},
     })
     write_json(data / "Data" / "CookingRecipes.json", {
         "Fried Egg": "-5 1/10 10/194/default/",

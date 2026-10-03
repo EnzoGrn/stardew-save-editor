@@ -35,6 +35,7 @@ To use another folder, run `python run.py --saves "D:\MySaves"`, or pick it from
 - Inventory: item quantity and quality, item names in your language, and with game data: item icons, adding objects and machines (search by name), removing items, moving them by drag and drop, tool upgrade levels (basic to iridium)
 - Recipes: learn or forget cooking and crafting recipes, all at once or one by one (with game data; without it, known recipes can be removed)
 - Appearance: gender, skin, hairstyle, accessory, hair and eye colors, and the clothes worn (shirt, pants, hat, boots) with their dye colors; with game data, every choice shows the game's sprite, tinted like in the game, next to a full preview of the farmer drawn from the game's own sprites
+- Museum: every donation on a plan of the museum's displays; move pieces by drag and drop, take one back (into a farmer's inventory or discarded), and with game data, donate straight from an inventory and see the missing pieces. Gunther's rewards already received are never touched
 - Friendship with each villager
 - Automatic backup before every change, manual backups, restore
 
@@ -42,7 +43,7 @@ Backups are stored next to the `Saves` folder, in `SaveManagerBackups/<save>/`. 
 
 ## Game data
 
-Some features need the game's own data: item names and icons, adding items, tool upgrades, the full recipe list, changing clothes and the appearance previews; the museum later. The app reads it from your copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack) (MIT licence). Without it, everything else keeps working.
+Some features need the game's own data: item names and icons, adding items, tool upgrades, the full recipe list, changing clothes and the appearance previews, the museum's empty displays (read from its map), donating and the missing pieces. The app reads it from your copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack) (MIT licence). Without it, everything else keeps working.
 
 On the home page, under **Game data**:
 

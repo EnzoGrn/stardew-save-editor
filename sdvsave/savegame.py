@@ -292,7 +292,7 @@ class SaveGame:
                     _set(item.find("value/Friendship"), "Points", value)
 
     # ------------------------------------------------------------------ recipes
-    # <cookingRecipes> and <craftingRecipes>: recipe name > times made. Cooking keeps
+    # <cookingRecipes> and <craftingRecipes>: recipe name → times made. Cooking keeps
     # 0 there (dishes cooked are counted in <recipesCooked>, by item, left untouched);
     # crafting counts how many times the recipe was crafted.
     _RECIPE_TAGS = {"cooking": "cookingRecipes", "crafting": "craftingRecipes"}
@@ -414,7 +414,7 @@ class SaveGame:
             slots.replace(placeholder, b)
 
     # ------------------------------------------------------------------ appearance
-    # Worn item tags > keys used by the UI
+    # Worn item tags → keys used by the UI
     _WORN = {"shirt": "shirtItem", "pants": "pantsItem", "hat": "hat", "boots": "boots"}
 
     def appearance(self, uid):
@@ -459,7 +459,7 @@ class SaveGame:
         Clothes come from the game data, needed to change them.
         """
         current = self.appearance(uid)
-        changes = {}  # save tag > new text
+        changes = {}  # save tag → new text
         if "gender" in values:
             if values["gender"] not in look.GENDERS:
                 raise SaveError("error.bad_choice", field=T("field.gender"), value=values["gender"])
@@ -474,14 +474,14 @@ class SaveGame:
             changes["hair"] = hair
         if "accessory" in values:
             changes["accessory"] = bounded(values["accessory"], -1, look.ACCESSORY_COUNT - 1, "field.accessory")
-        colors = {}  # color tag > (r, g, b)
+        colors = {}  # color tag → (r, g, b)
         for key, tag in (("hair_color", "hairstyleColor"), ("eye_color", "newEyeColor")):
             if key in values:
                 colors[tag] = look.parse_color(values[key], f"field.{key}")
 
         # Worn items: (tag, new element or None to take off), built once then copied
         worn = []
-        dyes = {}  # tag of a worn item kept > new dye color
+        dyes = {}  # tag of a worn item kept → new dye color
         for key, prefix in (("shirt", "S"), ("pants", "P")):
             tag = self._WORN[key]
             color = look.parse_color(values[f"{key}_color"], f"field.{key}_color") \
@@ -529,3 +529,98 @@ class SaveGame:
             if pants_changed and pants is not None and farmer.find("pantsColor") is not None:
                 look.write_color(farmer.find("pantsColor"),
                                  look.parse_color(look.read_color(pants.find("clothesColor")), "field.pants_color"))
+
+    # ------------------------------------------------------------------ museum
+    # The museum is the location named ArchaeologyHouse (class LibraryMuseum). Its
+    # <museumPieces> maps a display tile (Vector2 X, Y) to the id of the item shown there.
+    # Gunther's rewards are recorded apart, in each farmer's <mailReceived>
+    # ("museumCollectedReward…", "museum5"… "museumComplete"): they are never changed here,
+    # so taking a piece back doesn't take a reward back, and donating it again gives none.
+    MUSEUM = "ArchaeologyHouse"
+
+    def _museum(self):
+        for location in self.root.findall("locations/GameLocation"):
+            if location.findtext("name") == self.MUSEUM:
+                pieces = location.find("museumPieces")
+                if pieces is None:
+                    raise NotFound("error.missing_tag", tag="museumPieces", parent=self.MUSEUM)
+                return pieces
+        raise NotFound("error.no_museum")
+
+    @staticmethod
+    def _spot(entry):
+        return _int(entry, "key/Vector2/X"), _int(entry, "key/Vector2/Y")
+
+    @staticmethod
+    def museum_item_id(value):
+        """Plain object id of a donation: saves write "589", newer ones may write "(O)589"."""
+        value = (value or "").strip()
+        return value[3:] if value.startswith("(O)") else value
+
+    def museum(self):
+        """Donations, by display tile: [{"x", "y", "item_id"}], top to bottom, left to right."""
+        pieces = [{"x": x, "y": y, "item_id": self.museum_item_id(entry.findtext("value/string"))}
+                  for entry in self._museum() for x, y in [self._spot(entry)]]
+        return sorted(pieces, key=lambda p: (p["y"], p["x"]))
+
+    def _donation(self, spot):
+        for entry in self._museum():
+            if self._spot(entry) == tuple(spot):
+                return entry
+        return None
+
+    def remove_donation(self, spot):
+        """Takes a piece off its display; returns its item id."""
+        entry = self._donation(spot)
+        if entry is None:
+            raise SaveError("error.no_donation", x=spot[0], y=spot[1])
+        self._museum().remove(entry)
+        return self.museum_item_id(entry.findtext("value/string"))
+
+    def move_donation(self, source, target, spots=None):
+        """Moves a piece to another display tile, swapping with the piece already there.
+
+        spots: the display tiles of the museum map, needed to move onto an empty one.
+        """
+        entry = self._donation(source)
+        if entry is None:
+            raise SaveError("error.no_donation", x=source[0], y=source[1])
+        other = self._donation(target)
+        if other is None and (spots is None or tuple(target) not in spots):
+            raise SaveError("error.not_a_display", x=target[0], y=target[1])
+        for element, (x, y) in ((entry, target), (other, source)):
+            if element is not None:
+                _set(element.find("key/Vector2"), "X", x)
+                _set(element.find("key/Vector2"), "Y", y)
+
+    def donate(self, item_id, spot, spots):
+        """Puts an item on a free display tile of the museum map."""
+        item_id = self.museum_item_id(item_id)
+        if any(p["item_id"] == item_id for p in self.museum()):
+            raise SaveError("error.already_donated")
+        if tuple(spot) not in spots:
+            raise SaveError("error.not_a_display", x=spot[0], y=spot[1])
+        if self._donation(spot) is not None:
+            raise SaveError("error.display_taken", x=spot[0], y=spot[1])
+        entry = etree.SubElement(self._museum(), "item")
+        vector = etree.SubElement(etree.SubElement(entry, "key"), "Vector2")
+        etree.SubElement(vector, "X").text = str(spot[0])
+        etree.SubElement(vector, "Y").text = str(spot[1])
+        etree.SubElement(etree.SubElement(entry, "value"), "string").text = item_id
+
+    def first_free_item_slot(self, uid):
+        """Index of the first empty inventory slot of a player, or None."""
+        for i, element in enumerate(self._player(uid).find("items")):
+            if items.is_empty(element):
+                return i
+        return None
+
+    def take_one(self, uid, slot):
+        """Takes one item from an inventory slot (the whole slot if it holds one)."""
+        for slots in self._slots(uid, slot):
+            element = slots[slot]
+            stack = _int(element, "stack", 1)
+            if stack > 1:
+                _set(element, "stack", stack - 1)
+            else:
+                slots.replace(element, items.empty_slot())
