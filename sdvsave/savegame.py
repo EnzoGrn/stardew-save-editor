@@ -17,6 +17,9 @@ from .constants import (
 )
 from .errors import NotFound, SaveChangedError, SaveError, T
 
+#: Item classes with a quantity and a quality: plain objects, and colored ones (flowers…)
+STACKABLE_TYPES = ("Object", "ColoredObject")
+
 
 def _int(el, tag, default=0):
     try:
@@ -351,8 +354,8 @@ class SaveGame:
                 "quality": _int(it, "quality"),
                 "upgrade_level": _int(it, "upgradeLevel", -1),
                 # Tools and weapons have no quantity or quality
-                "editable": kind == "Object",
-                "has_quality": kind == "Object" and it.findtext("bigCraftable") != "true",
+                "editable": kind in STACKABLE_TYPES,
+                "has_quality": kind in STACKABLE_TYPES and it.findtext("bigCraftable") != "true",
             }
             extra = describe(it) if describe else {}
             slot.update({k: v for k, v in extra.items() if v is not None})
@@ -374,7 +377,7 @@ class SaveGame:
             slots = list(el.find("items"))
             for slot, change in changes.items():
                 it = slots[slot]
-                if it.get(XSI + "type") != "Object":
+                if it.get(XSI + "type") not in STACKABLE_TYPES:
                     continue
                 name = it.findtext("name")
                 _set(it, "stack", bounded(change["stack"], 1, 999, "field.quantity", item=name))
@@ -624,3 +627,144 @@ class SaveGame:
                 _set(element, "stack", stack - 1)
             else:
                 slots.replace(element, items.empty_slot())
+
+    # ------------------------------------------------------------------ chests
+    # Containers are found in every location's <objects> (a chest, or an auto-grabber
+    # whose <heldObject> is a chest) and in the <fridge> of the farmhouse and cabins.
+    # A container is named by "<location key>|<x>,<y>" (or "|fridge"), where the
+    # location key is the location's name, or for a building interior its uniqueName.
+    # Unlike a farmer's inventory, a chest's <items> list has no empty slots: items
+    # are appended and removed.
+    CHEST_CAPACITY = 36
+    _SPECIAL_CAPACITY = {"BigChest": 70, "MiniShippingBin": 9, "JunimoChest": 9, "Enricher": 1}
+
+    def _locations(self):
+        """(key, location element, building element or None) for every location and building interior."""
+        for location in self.root.findall("locations/GameLocation"):
+            yield location.findtext("name"), location, None
+            for building in location.findall("buildings/Building"):
+                indoors = building.find("indoors")
+                if indoors is None or indoors.get(XSI + "nil") == "true":
+                    continue
+                key = indoors.findtext("uniqueName") or \
+                    f"{indoors.findtext('name')}@{building.findtext('tileX')},{building.findtext('tileY')}"
+                yield key, indoors, building
+
+    def _containers(self):
+        """(key, container element, info) for every container of the save."""
+        for key, location, building in self._locations():
+            where = {"location": location.findtext("name") or key, "location_key": key,
+                     "building": building.findtext("buildingType") if building is not None else None}
+            fridge = location.find("fridge")
+            if fridge is not None and fridge.find("items") is not None:
+                yield f"{key}|fridge", fridge, {**where, "x": None, "y": None, "fridge": True}
+            for entry in location.findall("objects/item"):
+                obj = entry.find("value/Object")
+                if obj is None:
+                    continue
+                chest = obj if obj.get(XSI + "type") == "Chest" else obj.find("heldObject")
+                if chest is None or chest.get(XSI + "type") != "Chest" or chest.find("items") is None:
+                    continue
+                x, y = _int(entry, "key/Vector2/X"), _int(entry, "key/Vector2/Y")
+                yield f"{key}|{x},{y}", chest, {**where, "x": x, "y": y, "fridge": False,
+                                                 "holder": obj.findtext("name") if chest is not obj else None,
+                                                 "holder_id": obj.findtext("itemId") if chest is not obj else None}
+
+    def _container(self, key):
+        for found, chest, _ in self._containers():
+            if found == key:
+                return chest
+        raise NotFound("error.no_chest")
+
+    def _capacity(self, chest):
+        return self._SPECIAL_CAPACITY.get(chest.findtext("specialChestType") or "", self.CHEST_CAPACITY)
+
+    def chests(self):
+        """Every container: key, where it is, what it is, how full."""
+        homes = {el.findtext("homeLocation"): el.findtext("name") for el, _ in self._farmers()}
+        result = []
+        for key, chest, info in self._containers():
+            special = chest.findtext("specialChestType") or "None"
+            color = chest.find("playerChoiceColor")
+            shared = special == "JunimoChest" or bool(chest.findtext("globalInventoryId"))
+            result.append({
+                **info, "key": key,
+                "name": info.get("holder") or chest.findtext("name") or "Chest",
+                "item_id": info.get("holder_id") or chest.findtext("itemId") or "",
+                "big_craftable": chest.findtext("bigCraftable") == "true",
+                "special": special,
+                "owner": homes.get(info["location_key"]),  # whose cabin or farmhouse
+                "count": len(chest.find("items")), "capacity": self._capacity(chest),
+                # Black is the game's "no color chosen"
+                "color": None if color is None or _int(color, "PackedValue") in (0, 0xFF000000) else
+                         "#{:02x}{:02x}{:02x}".format(_int(color, "R"), _int(color, "G"), _int(color, "B")),
+                # Junimo chests share one inventory kept elsewhere: not edited here
+                "editable": not shared,
+            })
+        return result
+
+    def chest_items(self, key, describe=None):
+        """Items of a container, like inventory() (no empty slots)."""
+        slots = []
+        for i, it in enumerate(self._container(key).find("items")):
+            if items.is_empty(it):
+                continue
+            kind = it.get(XSI + "type") or "Item"
+            slot = {"slot": i, "empty": False, "type": kind, "name": it.findtext("name") or "?",
+                    "item_id": it.findtext("itemId") or "", "stack": _int(it, "stack", 1),
+                    "quality": _int(it, "quality"), "upgrade_level": _int(it, "upgradeLevel", -1),
+                    "editable": kind in STACKABLE_TYPES,
+                    "has_quality": kind in STACKABLE_TYPES and it.findtext("bigCraftable") != "true"}
+            extra = describe(it) if describe else {}
+            slot.update({k: v for k, v in extra.items() if v is not None})
+            slots.append(slot)
+        return slots
+
+    def _chest_list(self, key, editing=True):
+        chest = self._container(key)
+        if editing and not next(c for c in self.chests() if c["key"] == key)["editable"]:
+            raise SaveError("error.chest_shared")
+        return chest, chest.find("items")
+
+    def set_chest_items(self, key, changes):
+        """changes: {index: {"stack": n, "quality": q}} for plain objects."""
+        _, slots = self._chest_list(key)
+        listed = list(slots)
+        for index, change in changes.items():
+            if not 0 <= index < len(listed):
+                raise SaveError("error.no_slot", slot=index + 1)
+            it = listed[index]
+            if it.get(XSI + "type") not in STACKABLE_TYPES:
+                continue
+            name = it.findtext("name")
+            _set(it, "stack", bounded(change["stack"], 1, 999, "field.quantity", item=name))
+            if it.findtext("bigCraftable") == "true":
+                continue
+            quality = bounded(change["quality"], 0, 4, "field.quality", item=name)
+            if quality not in QUALITIES:
+                raise SaveError("error.unknown_quality", item=name)
+            _set(it, "quality", quality)
+
+    def add_to_chest(self, key, element):
+        chest, slots = self._chest_list(key)
+        if len(slots) >= self._capacity(chest):
+            raise SaveError("error.chest_full")
+        slots.append(element)
+
+    def remove_from_chest(self, key, index):
+        """Takes an item out of a container; returns its element."""
+        _, slots = self._chest_list(key)
+        if not 0 <= index < len(slots):
+            raise SaveError("error.no_slot", slot=index + 1)
+        element = slots[index]
+        slots.remove(element)
+        return element
+
+    def chest_to_inventory(self, key, index, uid):
+        """Moves an item from a container into a farmer's first free inventory slot."""
+        slot = self.first_free_item_slot(uid)
+        if slot is None:
+            raise SaveError("error.inventory_full", name=self._player(uid).findtext("name"))
+        element = self.remove_from_chest(key, index)
+        element.tail = None
+        self.add_item(uid, slot, element)

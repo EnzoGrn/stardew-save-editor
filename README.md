@@ -35,6 +35,7 @@ To use another folder, run `python run.py --saves "D:\MySaves"`, or pick it from
 - Inventory: item quantity and quality, item names in your language, and with game data: item icons, adding objects and machines (search by name), removing items, moving them by drag and drop, tool upgrade levels (basic to iridium)
 - Recipes: learn or forget cooking and crafting recipes, all at once or one by one (with game data; without it, known recipes can be removed)
 - Appearance: gender, skin, hairstyle, accessory, hair and eye colors, and the clothes worn (shirt, pants, hat, boots) with their dye colors; with game data, every choice shows the game's sprite, tinted like in the game, next to a full preview of the farmer drawn from the game's own sprites
+- Chests: every container of the save (chests, big chests, fridges, mini-fridges, auto-grabbers…) by place, with its fill level; open one to change quantities and qualities, take items out (into a farmer's inventory or discarded) and, with game data, add items
 - Museum: every donation on a plan of the museum's displays; move pieces by drag and drop, take one back (into a farmer's inventory or discarded), and with game data, donate straight from an inventory and see the missing pieces. Gunther's rewards already received are never touched
 - Friendship with each villager
 - Automatic backup before every change, manual backups, restore
@@ -92,6 +93,7 @@ web/                Flask UI
   unpacker.py       one-click game data preparation, in the background
   templates/        HTML pages
   static/style.css
+  static/items.js   item icons and the add-item search, shared by the inventory and chests
   static/farmer.js  full farmer preview, layering the game's sprites like the game does
 tests/              automated tests: `pip install pytest`, then `python -m pytest`
 ```

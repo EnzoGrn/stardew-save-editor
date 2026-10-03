@@ -289,3 +289,21 @@ h3 small { font: 400 .9rem var(--body); margin-left: .4rem; }
 .donate-list .item-name { flex: 1; min-width: 0; }
 .missing-list { max-height: 22rem; overflow-y: auto; }
 .museum-kinds { display: flex; flex-wrap: wrap; gap: .4rem 1.5rem; margin: -.4rem 0 1rem; font-weight: 800; color: var(--wood); }
+
+/* Chests: every container by place, one opened for editing */
+.chest-list { list-style: none; margin: 0 0 1rem; padding: 0; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .5rem .8rem; }
+.chest-card { display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: auto auto; align-items: center;
+  gap: .1rem .6rem; padding: .45rem .6rem; color: inherit; text-decoration: none;
+  background: #fffaf0; border: 2px solid var(--parchment-deep); }
+.chest-card:hover, .chest-card:focus-visible { border-color: var(--wood); }
+.chest-card.current { border-color: var(--gold); box-shadow: inset 0 0 0 2px var(--gold); }
+.chest-card .icon-box { grid-row: span 2; width: 32px; height: 32px; }
+.chest-text { display: grid; line-height: 1.25; min-width: 0; }
+.chest-color { display: inline-block; vertical-align: middle; width: 12px; height: 12px; border: 2px solid var(--wood-dark); border-radius: 50%; }
+.chest-card meter { grid-column: 2 / 4; width: 100%; height: .55rem; }
+.chest-fill { grid-column: 3; grid-row: 1; justify-self: end; font-weight: 800; color: var(--wood); }
+.chest-editor { padding: .8rem 1rem 1rem; margin-bottom: 1.5rem; background: #fffaf0; border: 3px solid var(--gold); }
+.chest-editor h2 { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.chest-editor h2 small { font: 400 .95rem var(--body); }
+.chest-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .6rem; font-weight: 800; }

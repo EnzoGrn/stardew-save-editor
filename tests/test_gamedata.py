@@ -67,6 +67,7 @@ def test_slash_data_uses_localized_data_file(game):
     (item("Boots", "504"), "B:504"),
     (item("Clothing", "0", clothesType="PANTS"), "P:0"),
     (item("SomeModType", "47"), "W:47"),   # unknown class: searched everywhere
+    (item("Slingshot", "0"), None),        # known class missing from its catalogue: not hat 0
     (item("Object", "4242"), None),
 ])
 def test_qualified_id_of_save_items(game, element, expected):

@@ -414,6 +414,94 @@ def search_items():
                             for qualified, name in results])
 
 
+# ---------------------------------------------------------------------- chests
+def chest_view(chest, data):
+    """A container as listed: where it is, in words, and its icon."""
+    lang = current_lang()
+    if chest["fridge"]:
+        title = t("chests.fridge")
+    else:
+        qualified = f"BC:{chest['item_id']}"
+        title = data.display_name(qualified, lang) if data and qualified in data.items else chest["name"]
+    if chest["owner"] and chest["building"] in (None, "Cabin") and chest["location"] in ("FarmHouse", "Cabin"):
+        # French elides "de" before a vowel ("Maison d'Aboobakar"): a key for names starting with one
+        vowel = re.match(r"[aeiouyhàâäéèêëîïôöûüAEIOUYHÀÂÄÉÈÊËÎÏÔÖÛÜ]", chest["owner"])
+        place = t("chests.home_of_vowel" if vowel else "chests.home_of", name=chest["owner"])
+    elif chest["building"]:
+        place = t("building." + chest["building"], default=chest["building"])
+    else:
+        place = t("location." + chest["location"], default=chest["location"])
+    icon = None
+    if data and not chest["fridge"]:
+        icon = icon_style(data.icon(f"BC:{chest['item_id']}"), fit=32)
+    return {**chest, "title": title, "place": place, "icon": icon,
+            "where": t("chests.tile", x=chest["x"], y=chest["y"]) if chest["x"] is not None else ""}
+
+
+@app.route("/save/<save_id>/chests")
+def chests(save_id):
+    sg = load(save_id)
+    data = game_data()
+    listed = [chest_view(c, data) for c in sg.chests()]
+    groups = {}
+    for chest in listed:
+        groups.setdefault(chest["place"], []).append(chest)
+    opened = next((c for c in listed if c["key"] == request.args.get("open")), None)
+    contents = sg.chest_items(opened["key"], describe_item if data else None) if opened else []
+    players = sg.players()
+    return render_template("chests.html", farm=sg.farm(), players=players, groups=groups, opened=opened,
+                           contents=contents, has_game_data=data is not None,
+                           receivers=[p for p in players if sg.first_free_item_slot(p["uid"]) is not None],
+                           tab="chests")
+
+
+def _chest_back(save_id):
+    return redirect(url_for("chests", save_id=save_id, open=request.form.get("key", "")) + "#opened")
+
+
+@app.post("/save/<save_id>/chests/items")
+def set_chest_items(save_id):
+    changes = {int(k[6:]): {"stack": v, "quality": request.form.get(f"quality_{k[6:]}", 0)}
+               for k, v in request.form.items() if k.startswith("stack_")}
+    edit(save_id, lambda sg: sg.set_chest_items(request.form.get("key", ""), changes), "flash.chest_saved")
+    return _chest_back(save_id)
+
+
+@app.post("/save/<save_id>/chests/add")
+def add_to_chest(save_id):
+    data = game_data()
+    if data is None:
+        abort(400)
+
+    def change(sg):
+        quality = request.form.get("quality", "0")
+        element = items.new_item(
+            data, request.form.get("item", ""),
+            stack=bounded(request.form.get("stack"), 1, 999, "field.quantity"),
+            quality=int(quality) if quality.isdigit() else 0)
+        sg.add_to_chest(request.form.get("key", ""), element)
+        return data.display_name(request.form["item"], current_lang())
+
+    edit(save_id, change, "flash.chest_item_added", result_as="name")
+    return _chest_back(save_id)
+
+
+@app.post("/save/<save_id>/chests/remove")
+def remove_from_chest(save_id):
+    key, receiver = request.form.get("key", ""), request.form.get("to", "")
+
+    def change(sg):
+        index = _slot_arg("slot")
+        if receiver:
+            sg.chest_to_inventory(key, index, receiver)
+            return {"where": T("chests.moved_to"), "player": sg.player(receiver)["name"]}
+        sg.remove_from_chest(key, index)
+        return {"where": T("chests.discarded")}
+
+    edit(save_id, change, "flash.chest_item_removed")
+    return _chest_back(save_id)
+
+
 # ---------------------------------------------------------------------- museum
 MUSEUM_SIZE = 95  # pieces in the game's museum, when no game data says otherwise
 

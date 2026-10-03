@@ -21,7 +21,6 @@ from .constants import XSI
 from .errors import SaveError, T
 
 _XSI_NS = XSI[1:-1]
-_XSD_NS = "http://www.w3.org/2001/XMLSchema"
 
 GENDERS = ("Male", "Female")
 SKIN_COUNT = 24
@@ -38,7 +37,7 @@ _WORN_ORDER = ("newEyeColor", "hat", "boots", "leftRing", "rightRing", "shirtIte
 
 _COLOR = re.compile(r"#([0-9a-fA-F]{2})([0-9a-fA-F]{2})([0-9a-fA-F]{2})")
 
-_ITEM_HEAD = (f'<{{tag}} xmlns:xsi="{_XSI_NS}" xmlns:xsd="{_XSD_NS}">'
+_ITEM_HEAD = (f'<{{tag}} xmlns:xsi="{_XSI_NS}">'
               "<isLostItem>false</isLostItem><category>{category}</category>"
               "<hasBeenInInventory>true</hasBeenInInventory><name>{name}</name><itemId>{item_id}</itemId>"
               "<specialItem>false</specialItem><isRecipe>false</isRecipe><quality>0</quality>"

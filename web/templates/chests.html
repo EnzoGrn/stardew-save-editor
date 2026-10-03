@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block content %}
+{% set count = groups.values()|map('length')|sum %}
+<h1>{{ t('chests.title') }} <small>{{ t('chests.count', n=count) }}</small></h1>
+
+{% if not has_game_data %}
+<p class="note standalone">{{ t('inventory.no_game_data') }} <a href="{{ url_for('index') }}#game-data">{{ t('inventory.enable_game_data') }}</a></p>
+{% endif %}
+
+{% if opened %}
+<section id="opened" class="chest-editor">
+<h2>
+  {% if opened.icon %}<span class="sprite" data-icon="{{ opened.icon }}" aria-hidden="true"></span>{% endif %}
+  {{ opened.title }} <small class="muted">{{ opened.place }}{% if opened.where %} · {{ opened.where }}{% endif %} · {{ t('chests.fill', count=opened.count, capacity=opened.capacity) }}</small>
+</h2>
+{% if not opened.editable %}
+<p class="note standalone">{{ t('chests.shared_note') }}</p>
+{% else %}
+<form method="post" action="{{ url_for('set_chest_items', save_id=farm.id) }}">
+  <input type="hidden" name="key" value="{{ opened.key }}">
+  {% if contents %}
+  <div class="chest-tools">
+    <label for="remove-to">{{ t('chests.remove_to') }}</label>
+    <select id="remove-to">
+      <option value="">{{ t('chests.discard') }}</option>
+      {% for pl in receivers %}<option value="{{ pl.uid }}">{{ t('chests.to_inventory', name=pl.name) }}</option>{% endfor %}
+    </select>
+  </div>
+  <ol class="inventory chest-items">
+  {% for it in contents %}
+    <li>
+      <div class="slot-head">
+        {% if it.icon %}<span class="sprite" data-icon="{{ it.icon }}" aria-hidden="true"></span>{% endif %}
+        <span class="item-name">{{ it.name }}</span>
+        <button type="button" class="slot-remove" data-remove-slot="{{ it.slot }}"
+                aria-label="{{ t('chests.take_out', item=it.name) }}" title="{{ t('chests.take_out', item=it.name) }}"
+                data-confirm="{{ t('chests.confirm_discard', item=it.name) }}">×</button>
+      </div>
+      {% if it.editable %}
+        <input aria-label="{{ t('inventory.quantity_of', item=it.name) }}" name="stack_{{ it.slot }}" type="number" min="1" max="999" value="{{ it.stack }}">
+        {% if it.has_quality %}
+        <select aria-label="{{ t('inventory.quality_of', item=it.name) }}" name="quality_{{ it.slot }}">
+          {% for q in QUALITIES %}<option value="{{ q }}" {% if q == it.quality %}selected{% endif %}>{{ t('quality.' ~ q) }}</option>{% endfor %}
+        </select>
+        {% endif %}
+      {% else %}
+        {% set type_label = t('item_type.' ~ it.type, default=it.type) %}
+        {% if type_label|lower != it.name|lower %}<span class="muted">{{ type_label }}</span>{% endif %}
+        {% if it.stack > 1 %}<span class="muted">×{{ it.stack }}</span>{% endif %}
+      {% endif %}
+    </li>
+  {% endfor %}
+  </ol>
+  {% if contents|selectattr('editable')|list %}<button>{{ t('chests.save') }}</button>{% endif %}
+  {% else %}
+  <p class="empty">{{ t('chests.empty') }}</p>
+  {% endif %}
+</form>
+
+<form method="post" action="{{ url_for('remove_from_chest', save_id=farm.id) }}" id="chest-remove" hidden>
+  <input type="hidden" name="key" value="{{ opened.key }}"><input type="hidden" name="slot"><input type="hidden" name="to">
+</form>
+
+{% if has_game_data %}
+<h3>{{ t('inventory.add_title') }}</h3>
+{% if opened.count < opened.capacity %}
+<form method="post" action="{{ url_for('add_to_chest', save_id=farm.id) }}" class="add-item"
+      data-search-url="{{ url_for('search_items') }}">
+  <input type="hidden" name="key" value="{{ opened.key }}">
+  <div class="add-search">
+    <label for="item-search">{{ t('inventory.search') }}</label>
+    <input id="item-search" type="search" autocomplete="off" placeholder="{{ t('inventory.search_placeholder') }}">
+    <ul class="search-results" role="listbox" aria-label="{{ t('inventory.search_results') }}"></ul>
+    <p class="muted search-empty" hidden>{{ t('inventory.search_none') }}</p>
+  </div>
+  <input type="hidden" name="item" required>
+  <p class="chosen" hidden><span class="sprite"></span><strong class="chosen-name"></strong></p>
+  <div class="fields">
+    <label><span class="field-label">{{ t('field.quantity_short') }}</span><span class="field-hint"></span>
+      <input name="stack" type="number" min="1" max="999" value="1"></label>
+    <label><span class="field-label">{{ t('field.quality_short') }}</span><span class="field-hint">{{ t('inventory.quality_hint') }}</span>
+      <select name="quality">{% for q in QUALITIES %}<option value="{{ q }}">{{ t('quality.' ~ q) }}</option>{% endfor %}</select></label>
+  </div>
+  <button class="add-submit" disabled>{{ t('inventory.add') }}</button>
+</form>
+{% else %}
+<p class="empty">{{ t('chests.full') }}</p>
+{% endif %}
+{% endif %}
+{% endif %}
+</section>
+{% endif %}
+
+<section id="all-chests">
+<h2>{{ t('chests.all') }}</h2>
+{% if groups %}
+{% for place, list in groups.items() %}
+<h3>{{ place }}</h3>
+<ul class="chest-list">
+  {% for c in list %}
+  <li>
+    <a href="{{ url_for('chests', save_id=farm.id, open=c.key) }}#opened" class="chest-card {{ 'current' if opened and opened.key == c.key }}"
+       {% if opened and opened.key == c.key %}aria-current="true"{% endif %}>
+      <span class="icon-box" aria-hidden="true">{% if c.icon %}<span class="sprite" data-icon="{{ c.icon }}"></span>{% endif %}</span>
+      <span class="chest-text">
+        <strong>{{ c.title }}{% if c.color %} <span class="chest-color" data-swatch="{{ c.color }}" title="{{ t('chests.color') }}"></span>{% endif %}</strong>
+        <small class="muted">{{ c.where }}</small>
+      </span>
+      <meter min="0" max="{{ c.capacity }}" value="{{ c.count }}" high="{{ c.capacity - 1 }}" optimum="0"
+             title="{{ t('chests.fill', count=c.count, capacity=c.capacity) }}"></meter>
+      <small class="chest-fill">{{ c.count }}/{{ c.capacity }}</small>
+    </a>
+  </li>
+  {% endfor %}
+</ul>
+{% endfor %}
+{% else %}
+<p class="empty">{{ t('chests.none') }}</p>
+{% endif %}
+</section>
+
+<script src="{{ url_for('static', filename='items.js') }}"></script>
+<script>
+// Chest colors chosen in the game (kept out of style attributes)
+document.querySelectorAll('[data-swatch]').forEach(el => { el.style.backgroundColor = el.dataset.swatch; });
+
+// × takes an item out: into the inventory picked above, or discarded (that one asks first)
+const removeForm = document.getElementById('chest-remove');
+if (removeForm) {
+  const destination = document.getElementById('remove-to');
+  document.querySelectorAll('[data-remove-slot]').forEach(button => button.addEventListener('click', () => {
+    if (!destination.value && !confirm(button.dataset.confirm)) return;
+    removeForm.elements.slot.value = button.dataset.removeSlot;
+    removeForm.elements.to.value = destination.value;
+    removeForm.submit();
+  }));
+}
+</script>
+{% endblock %}

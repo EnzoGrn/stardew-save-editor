@@ -265,8 +265,9 @@ class GameData:
             prefix = "P" if element.findtext("clothesType") == "PANTS" else "S"
         else:
             prefix = {"Hat": "H", "Boots": "B", "Trinket": "TR", "Mannequin": "M"}.get(kind)
-        if prefix and f"{prefix}:{item_id}" in self.items:
-            return f"{prefix}:{item_id}"
+        if prefix:
+            # Known class: only its own catalogue (a missing slingshot isn't the hat with its id)
+            return f"{prefix}:{item_id}" if f"{prefix}:{item_id}" in self.items else None
         # Unknown class (or a mod's): look for the id in every catalogue
         for candidate in (f"{p}:{item_id}" for p in (*_MODEL_FILES, *_SLASH_FILES)):
             if candidate in self.items:

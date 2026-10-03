@@ -47,6 +47,7 @@ try { if (localStorage.getItem('warningDismissed')) document.documentElement.cla
     {% for pl in players if pl.customized %}
       <a href="{{ url_for('player', save_id=farm.id, uid=pl.uid) }}" {% if tab == pl.uid %}aria-current="page"{% endif %}>{{ pl.name }}</a>
     {% endfor %}
+    <a href="{{ url_for('chests', save_id=farm.id) }}" {% if tab == 'chests' %}aria-current="page"{% endif %}>{{ t('nav.chests') }}</a>
     <a href="{{ url_for('museum', save_id=farm.id) }}" {% if tab == 'museum' %}aria-current="page"{% endif %}>{{ t('nav.museum') }}</a>
     <a href="{{ url_for('backups', save_id=farm.id) }}" {% if tab == 'backups' %}aria-current="page"{% endif %}>{{ t('nav.backups') }}</a>
   </nav>

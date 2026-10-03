@@ -12,11 +12,10 @@ from .constants import XSI
 from .errors import SaveError
 
 _XSI_NS = XSI[1:-1]
-_XSD_NS = "http://www.w3.org/2001/XMLSchema"
 
 # A plain object as the game saves it (taken from a real 1.6 save). The values
 # marked {} are filled from the game data; the others are the game's defaults.
-_OBJECT_TEMPLATE = f"""<Item xmlns:xsi="{_XSI_NS}" xmlns:xsd="{_XSD_NS}" xsi:type="Object">\
+_OBJECT_TEMPLATE = f"""<Item xmlns:xsi="{_XSI_NS}" xsi:type="Object">\
 <isLostItem>false</isLostItem><category>{{category}}</category><hasBeenInInventory>true</hasBeenInInventory>\
 <name>{{name}}</name><parentSheetIndex>{{sprite}}</parentSheetIndex><itemId>{{item_id}}</itemId>\
 <specialItem>false</specialItem><isRecipe>false</isRecipe><quality>{{quality}}</quality><stack>{{stack}}</stack>\
@@ -81,7 +80,7 @@ def empty_slot():
 
 
 def set_tool_level(element, gamedata, level):
-    """Upgrades or downgrades a tool in place (Axe > Gold Axe…), from the game data."""
+    """Upgrades or downgrades a tool in place (Axe → Gold Axe…), from the game data."""
     class_name = element.get(XSI + "type")
     levels = gamedata.tool_levels(class_name)
     if level not in levels:
