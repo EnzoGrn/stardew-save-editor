@@ -1,24 +1,35 @@
 {% extends "base.html" %}
 {% macro animal_row(a) %}
-<li class="animal">
-  <span class="icon-box" aria-hidden="true">{% if a.icon %}<span class="sprite" data-icon="{{ a.icon }}"></span>{% endif %}</span>
-  <div class="animal-main">
-    <input class="animal-name" name="name__{{ a.id }}" value="{{ a.name }}" maxlength="32" required
-           aria-label="{{ t('field.animal_name') }}">
-    <small class="muted">{{ a.type_label }}{% if a.owner %} · {{ t('animals.owner', name=a.owner) }}{% endif %} · {{ t('animals.age', n=a.age) }}</small>
+<li class="animal-card">
+  <div class="animal-head">
+    <span class="animal-portrait" aria-hidden="true">{% if a.icon %}<span class="sprite" data-icon="{{ a.icon }}"></span>{% endif %}</span>
+    <div class="animal-id">
+      <input class="animal-name" name="name__{{ a.id }}" value="{{ a.name }}" maxlength="32" required
+             aria-label="{{ t('field.animal_name') }}" title="{{ t('field.animal_name') }}">
+      <small class="muted">{{ a.type_label }}{% if a.owner %} · {{ t('animals.owner', name=a.owner) }}{% endif %} · {{ t('animals.age', n=a.age) }}</small>
+    </div>
   </div>
-  <label class="animal-stat"><span class="field-label">{{ t('animals.friendship') }}</span>
-    <input type="number" name="friendship__{{ a.id }}" min="0" max="{{ max_friendship }}" value="{{ a.friendship }}"
-           data-hearts-for="{{ a.id }}">
-    <span class="hearts" data-hearts="{{ a.id }}" aria-hidden="true"></span></label>
-  <label class="animal-stat"><span class="field-label">{{ t('animals.happiness') }}</span>
-    <input type="number" name="happiness__{{ a.id }}" min="0" max="{{ max_happiness }}" value="{{ a.happiness }}"></label>
+  <div class="animal-row">
+    <span class="row-label">{{ t('animals.friendship') }}</span>
+    <span class="hearts heart-picker" data-hearts="{{ a.id }}" role="presentation" title="{{ t('animals.hearts_hint') }}"></span>
+    <input class="num" type="number" name="friendship__{{ a.id }}" min="0" max="{{ max_friendship }}" value="{{ a.friendship }}"
+           data-hearts-for="{{ a.id }}" aria-label="{{ t('field.animal_friendship', animal=a.name) }}">
+  </div>
+  <div class="animal-row">
+    <span class="row-label">{{ t('animals.happiness') }}</span>
+    <input type="range" min="0" max="{{ max_happiness }}" value="{{ a.happiness }}" data-mirror="happiness__{{ a.id }}"
+           aria-hidden="true" tabindex="-1">
+    <input class="num" type="number" name="happiness__{{ a.id }}" min="0" max="{{ max_happiness }}" value="{{ a.happiness }}"
+           aria-label="{{ t('field.animal_happiness', animal=a.name) }}">
+  </div>
   {% if a.moves %}
-  <label class="animal-stat"><span class="field-label">{{ t('animals.move') }}</span>
-    <select name="move__{{ a.id }}">
+  <div class="animal-row">
+    <label class="row-label" for="move-{{ a.id }}">{{ t('animals.move') }}</label>
+    <select id="move-{{ a.id }}" name="move__{{ a.id }}">
       <option value="">{{ t('animals.stay') }}</option>
       {% for m in a.moves %}<option value="{{ m.key }}" {% if m.full %}disabled{% endif %}>{{ m.label }}{% if m.full %} {{ t('animals.full') }}{% endif %}</option>{% endfor %}
-    </select></label>
+    </select>
+  </div>
   {% endif %}
 </li>
 {% endmacro %}
@@ -26,13 +37,13 @@
 <h1>{{ t('animals.title') }}</h1>
 
 {% if homes or outside %}
-<form method="post" action="{{ url_for('set_animals', save_id=farm.id) }}" data-points-per-heart="200">
+<form method="post" action="{{ url_for('set_animals', save_id=farm.id) }}" data-points-per-heart="200" data-savebar>
   <p class="help">{{ t('animals.help', max=max_friendship, happy=max_happiness) }}</p>
   {% for h in homes %}
   <section class="animal-home">
     <h2>{{ h.label }} <small class="muted">{{ t('animals.occupants', count=h.count, capacity=h.capacity) }}</small></h2>
     {% if h.animals %}
-    <ul class="animal-list">{% for a in h.animals %}{{ animal_row(a) }}{% endfor %}</ul>
+    <ul class="animal-grid">{% for a in h.animals %}{{ animal_row(a) }}{% endfor %}</ul>
     {% else %}
     <p class="empty">{{ t('animals.empty_home') }}</p>
     {% endif %}
@@ -41,7 +52,7 @@
   {% if outside %}
   <section class="animal-home">
     <h2>{{ t('animals.outside') }}</h2>
-    <ul class="animal-list">{% for a in outside %}{{ animal_row(a) }}{% endfor %}</ul>
+    <ul class="animal-grid">{% for a in outside %}{{ animal_row(a) }}{% endfor %}</ul>
   </section>
   {% endif %}
   <button>{{ t('animals.save') }}</button>
@@ -52,18 +63,36 @@
 
 <script src="{{ url_for('static', filename='items.js') }}"></script>
 <script>
-// Hearts next to each friendship field, updated while typing (200 points per heart, 5 hearts)
+// Friendship: hearts drawn from the field (200 points each) and clickable to set it;
+// happiness: the slider and the number field follow each other
 const form = document.querySelector('form[data-points-per-heart]');
 if (form) {
   const perHeart = +form.dataset.pointsPerHeart;
   form.querySelectorAll('[data-hearts]').forEach(span => {
     const input = form.querySelector(`[data-hearts-for="${span.dataset.hearts}"]`);
-    const draw = () => {
-      const value = Math.max(0, Math.min(5 * perHeart, +input.value || 0));
-      const full = Math.floor(value / perHeart), half = value % perHeart >= perHeart / 2 ? 1 : 0;
-      span.textContent = '♥'.repeat(full) + (half ? '♡' : '') + '·'.repeat(5 - full - half);
-    };
-    input.addEventListener('input', draw); draw();
+    const draw = () => window.drawHearts(span, Math.floor(Math.max(0, Math.min(5 * perHeart, +input.value || 0)) / perHeart), 5);
+    span.addEventListener('click', event => {
+      const heart = event.target.closest('.heart-picker > *');
+      if (!heart && event.target !== span) return;
+      const index = heart ? [...span.children].indexOf(heart) + 1 : 0;
+      // Clicking the last full heart again empties it
+      const value = index * perHeart === +input.value ? (index - 1) * perHeart : index * perHeart;
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    input.addEventListener('input', draw);
+    form.addEventListener('change', draw);
+    draw();
+  });
+  form.querySelectorAll('[data-mirror]').forEach(range => {
+    const input = form.querySelector(`[name="${range.dataset.mirror}"]`);
+    range.addEventListener('input', () => {
+      input.value = range.value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const follow = () => { range.value = input.value; };
+    input.addEventListener('input', follow);
+    form.addEventListener('change', follow);  // the save bar's undo
   });
 }
 </script>

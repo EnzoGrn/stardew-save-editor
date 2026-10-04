@@ -16,7 +16,7 @@
 {% if not opened.editable %}
 <p class="note standalone">{{ t('chests.shared_note') }}</p>
 {% else %}
-<form method="post" action="{{ url_for('set_chest_items', save_id=farm.id) }}">
+<form method="post" action="{{ url_for('set_chest_items', save_id=farm.id) }}" data-savebar>
   <input type="hidden" name="key" value="{{ opened.key }}">
   {% if contents %}
   <div class="chest-tools">
@@ -39,9 +39,9 @@
       {% if it.editable %}
         <input aria-label="{{ t('inventory.quantity_of', item=it.name) }}" name="stack_{{ it.slot }}" type="number" min="1" max="999" value="{{ it.stack }}">
         {% if it.has_quality %}
-        <select aria-label="{{ t('inventory.quality_of', item=it.name) }}" name="quality_{{ it.slot }}">
-          {% for q in QUALITIES %}<option value="{{ q }}" {% if q == it.quality %}selected{% endif %}>{{ t('quality.' ~ q) }}</option>{% endfor %}
-        </select>
+        <span class="quality-pick"><span class="sprite ui-icon quality-icon" aria-hidden="true" hidden></span><select data-icon-select aria-label="{{ t('inventory.quality_of', item=it.name) }}" name="quality_{{ it.slot }}">
+          {% for q in QUALITIES %}<option value="{{ q }}" {% if ui_icon('quality_' ~ q) %}data-option-icon="{{ ui_icon('quality_' ~ q) }}"{% endif %} {% if q == it.quality %}selected{% endif %}>{{ t('quality.' ~ q) }}</option>{% endfor %}
+        </select></span>
         {% endif %}
       {% else %}
         {% set type_label = t('item_type.' ~ it.type, default=it.type) %}
@@ -79,7 +79,7 @@
     <label><span class="field-label">{{ t('field.quantity_short') }}</span><span class="field-hint"></span>
       <input name="stack" type="number" min="1" max="999" value="1"></label>
     <label><span class="field-label">{{ t('field.quality_short') }}</span><span class="field-hint">{{ t('inventory.quality_hint') }}</span>
-      <select name="quality">{% for q in QUALITIES %}<option value="{{ q }}">{{ t('quality.' ~ q) }}</option>{% endfor %}</select></label>
+      <span class="quality-pick"><span class="sprite ui-icon quality-icon" aria-hidden="true" hidden></span><select name="quality" data-icon-select>{% for q in QUALITIES %}<option value="{{ q }}" {% if ui_icon('quality_' ~ q) %}data-option-icon="{{ ui_icon('quality_' ~ q) }}"{% endif %}>{{ t('quality.' ~ q) }}</option>{% endfor %}</select></span></label>
   </div>
   <button class="add-submit" disabled>{{ t('inventory.add') }}</button>
 </form>

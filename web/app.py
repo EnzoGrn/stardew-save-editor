@@ -57,12 +57,19 @@ def t(key, **params):
     return i18n.translate(current_lang(), key, **params)
 
 
+def ui_icon(name, scale=2):
+    """CSS of one of the game's interface icons (stars, hearts, coin…), or None without game data."""
+    data = game_data()
+    return icon_style(data.ui_icon(name), scale=scale) if data else None
+
+
 @app.context_processor
 def globals_():
     return {
         "t": t, "lang": current_lang(), "languages": i18n.languages(),
         "QUALITIES": QUALITIES, "POINTS_PER_HEART": POINTS_PER_HEART,
         "MAX_POINTS": MAX_FRIENDSHIP_POINTS, "BACKPACK_SIZES": BACKPACK_SIZES,
+        "ui_icon": ui_icon,
     }
 
 
@@ -538,7 +545,7 @@ def animals(save_id):
     groups = {h["key"]: {**h, "label": labels[h["key"]], "animals": []} for h in homes}
     outside = []
     for animal in sg.animals():
-        animal["icon"] = icon_style(data.animal_icon(animal["type"], animal["lives_in"]), fit=32) if data else None
+        animal["icon"] = icon_style(data.animal_icon(animal["type"], animal["lives_in"]), fit=48) if data else None
         animal["type_label"] = t("animal." + animal["type"], default=animal["type"])
         # Where it can go: another house of its kind with room
         animal["moves"] = [{"key": h["key"], "label": labels[h["key"]], "full": h["count"] >= h["capacity"]}

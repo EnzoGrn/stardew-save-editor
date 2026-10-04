@@ -10,7 +10,7 @@
 
   "nav.all_saves": "Toutes les parties",
   "nav.sections": "Sections de la partie",
-  "nav.farm": "Ferme",
+  "nav.farm": "Infos et calendrier",
   "nav.backups": "Copies de sécurité",
 
   "action.save": "Enregistrer",
@@ -518,5 +518,18 @@
   "quest_type.CraftingQuest": "Fabrication",
   "quest_type.GoSomewhereQuest": "Déplacement",
   "quest_type.HaveBuildingQuest": "Construction",
-  "quest_type.Quest": "Histoire"
+  "quest_type.Quest": "Histoire",
+
+  "nav.group_farm": "La ferme",
+  "nav.group_farmers": "Fermiers",
+  "player.sections": "Sections du fermier",
+  "player.tab_profile": "Profil",
+
+  "savebar.label": "Changements non enregistrés",
+  "savebar.count.one": "{n} changement non enregistré",
+  "savebar.count.other": "{n} changements non enregistrés",
+  "savebar.saving": "Enregistrement…",
+  "savebar.undo": "Annuler",
+  "savebar.save": "Enregistrer",
+  "animals.hearts_hint": "Clique sur un cœur pour régler l'amitié (200 points par cœur)"
 }

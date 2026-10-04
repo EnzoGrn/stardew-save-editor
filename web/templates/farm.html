@@ -1,8 +1,9 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, gold_amount with context %}
 {% block content %}
 <h1>{{ t('farm.title', name=farm.farm_name) }}</h1>
 
-<form method="post" action="{{ url_for('rename_farm', save_id=farm.id) }}" class="inline-form">
+<form method="post" action="{{ url_for('rename_farm', save_id=farm.id) }}" class="inline-form" data-savebar>
   <label for="farm_name">{{ t('field.farm_name') }}</label>
   <input id="farm_name" name="farm_name" value="{{ farm.farm_name }}" maxlength="32" size="24" required>
   <button>{{ t('farm.rename') }}</button>
@@ -11,14 +12,14 @@
 
 <dl class="facts">
   <div><dt>{{ t('farm.type') }}</dt><dd>{{ t('farm_type.' ~ farm.farm_type, default=farm.farm_type) }}</dd></div>
-  <div><dt>{{ t('farm.date') }}</dt><dd>{{ t('date.full', season=t('season.' ~ farm.season, default=farm.season), day=farm.day, year=farm.year) }}</dd></div>
+  <div><dt>{{ t('farm.date') }}</dt><dd>{{ icon('season_' ~ farm.season) }} {{ t('date.full', season=t('season.' ~ farm.season, default=farm.season), day=farm.day, year=farm.year) }}</dd></div>
   <div><dt>{{ t('farm.played') }}</dt><dd>{{ farm.played_ms|duration }}</dd></div>
   <div><dt>{{ t('farm.wallet') }}</dt><dd>{{ t('farm.wallet_shared') if farm.shared_wallet else t('farm.wallet_separate') }}</dd></div>
   <div><dt>{{ t('farm.version') }}</dt><dd>{{ farm.version }}</dd></div>
   <div><dt>{{ t('farm.unique_id') }}</dt><dd>{{ farm.unique_id }}</dd></div>
 </dl>
 
-<form method="post" action="{{ url_for('set_walnuts', save_id=farm.id) }}" class="inline-form">
+<form method="post" action="{{ url_for('set_walnuts', save_id=farm.id) }}" class="inline-form" data-savebar>
   <label for="golden_walnuts">{{ t('field.golden_walnuts') }}</label>
   <input id="golden_walnuts" name="golden_walnuts" type="number" min="0" max="130" value="{{ farm.golden_walnuts }}">
   <button>{{ t('action.save') }}</button>
@@ -26,10 +27,10 @@
 <section id="calendar">
 <h2>{{ t('calendar.title') }}</h2>
 <form method="post" action="{{ url_for('set_calendar', save_id=farm.id) }}" class="calendar"
-      data-confirm="{{ t('calendar.confirm') }}">
+      data-confirm="{{ t('calendar.confirm') }}" data-savebar>
   <div class="fields">
     <label><span class="field-label">{{ t('field.season') }}</span><span class="field-hint"></span>
-      <select name="season">{% for s in seasons %}<option value="{{ s }}" {% if s == calendar.season %}selected{% endif %}>{{ t('season.' ~ s) }}</option>{% endfor %}</select></label>
+      <span class="icon-pick"><span class="sprite ui-icon" aria-hidden="true" hidden></span><select name="season" data-icon-select>{% for s in seasons %}<option value="{{ s }}" {% if ui_icon('season_' ~ s) %}data-option-icon="{{ ui_icon('season_' ~ s) }}"{% endif %} {% if s == calendar.season %}selected{% endif %}>{{ t('season.' ~ s) }}</option>{% endfor %}</select></span></label>
     <label><span class="field-label">{{ t('field.day') }}</span><span class="field-hint"></span>
       <input name="day" type="number" min="1" max="{{ days_per_season }}" value="{{ calendar.day }}"></label>
     <label><span class="field-label">{{ t('field.year') }}</span><span class="field-hint"></span>
@@ -39,10 +40,10 @@
   {% for context, current in calendar.weather_tomorrow.items() %}
     <label><span class="field-label">{{ t('calendar.weather_' ~ context) }}</span>
       <span class="field-hint">{{ t('calendar.weather_hint_' ~ context) }}</span>
-      <select name="weather_{{ context }}">
-        {% for w in (island_weathers if context == 'Island' else weathers) %}<option value="{{ w }}" {% if w == current %}selected{% endif %}>{{ t('weather.' ~ w) }}</option>{% endfor %}
+      <span class="icon-pick"><span class="sprite ui-icon" aria-hidden="true" hidden></span><select name="weather_{{ context }}" data-icon-select>
+        {% for w in (island_weathers if context == 'Island' else weathers) %}<option value="{{ w }}" {% if ui_icon('weather_' ~ w) %}data-option-icon="{{ ui_icon('weather_' ~ w) }}"{% endif %} {% if w == current %}selected{% endif %}>{{ t('weather.' ~ w) }}</option>{% endfor %}
         {% if current not in (island_weathers if context == 'Island' else weathers) %}<option value="" selected>{{ t('weather.' ~ current, default=current) }}</option>{% endif %}
-      </select></label>
+      </select></span></label>
   {% endfor %}
   </div>
   <p class="note standalone">{{ t('calendar.note') }}</p>

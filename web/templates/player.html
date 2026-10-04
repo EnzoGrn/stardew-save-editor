@@ -1,8 +1,16 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, gold_amount with context %}
 {% block content %}
 <h1>{{ p.name }} <small>{{ t('role.host') if p.is_host else t('role.farmhand') }}</small></h1>
+<nav class="subtabs" role="tablist" aria-label="{{ t('player.sections') }}">
+  {% for pane, label in (('stats', 'player.tab_profile'), ('appearance', 'look.title'), ('inventory', 'inventory.title'),
+                         ('recipes', 'recipes.title'), ('quests', 'quests.title'), ('friends', 'friends.title')) %}
+  <a href="#{{ pane }}" role="tab" data-pane-link="{{ pane }}">{{ t(label) }}</a>
+  {% endfor %}
+</nav>
 
-<form method="post" action="{{ url_for('rename_player', save_id=farm.id, uid=p.uid) }}" class="inline-form">
+<div class="pane" id="pane-stats" role="tabpanel">
+<form method="post" action="{{ url_for('rename_player', save_id=farm.id, uid=p.uid) }}" class="inline-form" data-savebar>
   <label for="player_name">{{ t('field.player_name') }}</label>
   <input id="player_name" name="player_name" value="{{ p.name }}" maxlength="32" size="24" required>
   <button>{{ t('player.rename') }}</button>
@@ -10,10 +18,10 @@
 
 <section id="stats">
 <h2>{{ t('stats.title') }}</h2>
-<form method="post" action="{{ url_for('set_stats', save_id=farm.id, uid=p.uid) }}">
+<form method="post" action="{{ url_for('set_stats', save_id=farm.id, uid=p.uid) }}" data-savebar>
   <div class="fields">
     <label>
-      <span class="field-label">{{ t('field.money') }}</span>
+      <span class="field-label">{{ icon('gold') }} {{ t('field.money') }}</span>
       <span class="field-hint">{% if farm.shared_wallet %}{{ t('stats.money_shared') }}{% endif %}</span>
       <input name="money" type="number" min="0" max="99999999" value="{{ p.money }}"></label>
     <label>
@@ -44,13 +52,14 @@
 
 <section id="skills">
 <h2>{{ t('skills.title') }}</h2>
-<form method="post" action="{{ url_for('set_skills', save_id=farm.id, uid=p.uid) }}">
+<form method="post" action="{{ url_for('set_skills', save_id=farm.id, uid=p.uid) }}" data-savebar>
   <div class="fields">
   {% for s in p.skills %}
-    <label>
-      <span class="field-label">{{ t('skill.' ~ s.id) }}</span>
+    <label class="skill">
+      <span class="field-label">{{ icon('skill_' ~ s.id) }} {{ t('skill.' ~ s.id) }}</span>
       <span class="field-hint">{{ t('skills.xp', xp=s.xp|gold) }}</span>
-      <input name="skill_{{ s.index }}" type="number" min="0" max="10" value="{{ s.level }}"></label>
+      <input name="skill_{{ s.index }}" type="number" min="0" max="10" value="{{ s.level }}" data-level-bar>
+      <span class="level-bar" aria-hidden="true">{% for i in range(10) %}<i {% if i < s.level %}class="on"{% endif %}></i>{% endfor %}</span></label>
   {% endfor %}
   </div>
   <label class="check"><input type="checkbox" name="show_levelup" checked>
@@ -58,13 +67,15 @@
   <button>{{ t('skills.save') }}</button>
 </form>
 </section>
+</div>
 
+<div class="pane" id="pane-appearance" role="tabpanel">
 <section id="appearance">
 <h2>{{ t('look.title') }}</h2>
 {% if not has_game_data %}
 <p class="note standalone">{{ t('look.no_game_data') }} <a href="{{ url_for('index') }}#game-data">{{ t('inventory.enable_game_data') }}</a></p>
 {% endif %}
-<form method="post" action="{{ url_for('set_appearance', save_id=farm.id, uid=p.uid) }}" class="look">
+<form method="post" action="{{ url_for('set_appearance', save_id=farm.id, uid=p.uid) }}" class="look" data-savebar>
 <div class="look-layout">
   {% if look.can_draw_farmer %}
   <figure class="farmer-preview">
@@ -140,7 +151,9 @@
 </form>
 {% if look.can_draw_farmer %}<script src="{{ url_for('static', filename='farmer.js') }}" defer></script>{% endif %}
 </section>
+</div>
 
+<div class="pane" id="pane-inventory" role="tabpanel">
 <section id="inventory">
 <h2>{{ t('inventory.title') }}</h2>
 {% if not has_game_data %}
@@ -148,7 +161,7 @@
 {% else %}
 <p class="note standalone">{{ t('inventory.move_hint') }}</p>
 {% endif %}
-<form method="post" action="{{ url_for('set_inventory', save_id=farm.id, uid=p.uid) }}">
+<form method="post" action="{{ url_for('set_inventory', save_id=farm.id, uid=p.uid) }}" data-savebar>
 <ol class="inventory" data-move-form="move-form">
 {% for it in inventory %}
   <li class="{{ 'empty' if it.empty }}" data-slot="{{ it.slot }}" {% if not it.empty %}draggable="true"{% endif %}>
@@ -166,9 +179,9 @@
     {% if it.editable %}
       <input aria-label="{{ t('inventory.quantity_of', item=it.name) }}" name="stack_{{ it.slot }}" type="number" min="1" max="999" value="{{ it.stack }}">
       {% if it.has_quality %}
-      <select aria-label="{{ t('inventory.quality_of', item=it.name) }}" name="quality_{{ it.slot }}">
-        {% for q in QUALITIES %}<option value="{{ q }}" {% if q == it.quality %}selected{% endif %}>{{ t('quality.' ~ q) }}</option>{% endfor %}
-      </select>
+      <span class="quality-pick"><span class="sprite ui-icon quality-icon" aria-hidden="true" hidden></span><select data-icon-select aria-label="{{ t('inventory.quality_of', item=it.name) }}" name="quality_{{ it.slot }}">
+        {% for q in QUALITIES %}<option value="{{ q }}" {% if ui_icon('quality_' ~ q) %}data-option-icon="{{ ui_icon('quality_' ~ q) }}"{% endif %} {% if q == it.quality %}selected{% endif %}>{{ t('quality.' ~ q) }}</option>{% endfor %}
+      </select></span>
       {% endif %}
     {% elif it.tool_levels %}
       <select aria-label="{{ t('inventory.tool_level_of', item=it.name) }}" name="tool_level_{{ it.slot }}">
@@ -210,7 +223,7 @@
     <label><span class="field-label">{{ t('field.quantity_short') }}</span><span class="field-hint"></span>
       <input name="stack" type="number" min="1" max="999" value="1"></label>
     <label><span class="field-label">{{ t('field.quality_short') }}</span><span class="field-hint">{{ t('inventory.quality_hint') }}</span>
-      <select name="quality">{% for q in QUALITIES %}<option value="{{ q }}">{{ t('quality.' ~ q) }}</option>{% endfor %}</select></label>
+      <span class="quality-pick"><span class="sprite ui-icon quality-icon" aria-hidden="true" hidden></span><select name="quality" data-icon-select>{% for q in QUALITIES %}<option value="{{ q }}" {% if ui_icon('quality_' ~ q) %}data-option-icon="{{ ui_icon('quality_' ~ q) }}"{% endif %}>{{ t('quality.' ~ q) }}</option>{% endfor %}</select></span></label>
     <label><span class="field-label">{{ t('inventory.slot') }}</span><span class="field-hint"></span>
       <select name="slot">{% for s in free_slots %}<option value="{{ s }}">{{ t('inventory.slot_number', n=s + 1) }}</option>{% endfor %}</select></label>
   </div>
@@ -221,7 +234,9 @@
 {% endif %}
 {% endif %}
 </section>
+</div>
 
+<div class="pane" id="pane-recipes" role="tabpanel">
 <section id="recipes">
 <h2>{{ t('recipes.title') }}</h2>
 {% if not has_game_data %}
@@ -231,7 +246,7 @@
 {% set list = recipes[kind] %}
 <h3 id="recipes-{{ kind }}">{{ t('recipes.' ~ kind) }} <small class="muted">{{ t('recipes.count', known=list.known, total=list.rows|length) }}</small></h3>
 {% if list.rows %}
-<form method="post" action="{{ url_for('set_recipes', save_id=farm.id, uid=p.uid, kind=kind) }}" class="recipes">
+<form method="post" action="{{ url_for('set_recipes', save_id=farm.id, uid=p.uid, kind=kind) }}" class="recipes" data-savebar>
   <div class="recipe-tools">
     <input type="search" class="recipe-filter" aria-label="{{ t('recipes.filter') }}" placeholder="{{ t('recipes.filter') }}">
     <button type="button" class="secondary" data-check="all">{{ t('recipes.check_all') }}</button>
@@ -257,7 +272,9 @@
 {% endif %}
 {% endfor %}
 </section>
+</div>
 
+<div class="pane" id="pane-quests" role="tabpanel">
 <section id="quests">
 <h2>{{ t('quests.title') }}</h2>
 {% if quests %}
@@ -274,7 +291,7 @@
         {% if q.daily and q.days_left %} · {{ t('quests.days_left', n=q.days_left) }}{% endif %}
       </small>
     </div>
-    <span class="quest-reward">{% if q.reward > 0 %}{{ t('format.gold', amount=q.reward|gold) }}{% endif %}</span>
+    <span class="quest-reward">{% if q.reward > 0 %}{{ gold_amount(q.reward) }}{% endif %}</span>
     <span class="quest-state">{% if q.completed %}<span class="reward-waiting">{{ t('quests.to_collect') }}</span>{% endif %}</span>
     <div class="quest-actions">
       {% if not q.completed %}
@@ -293,11 +310,13 @@
 <p class="empty">{{ t('quests.none', name=p.name) }}</p>
 {% endif %}
 </section>
+</div>
 
+<div class="pane" id="pane-friends" role="tabpanel">
 <section id="friends">
 <h2>{{ t('friends.title') }}</h2>
 {% if friendships %}
-<form method="post" action="{{ url_for('set_friendships', save_id=farm.id, uid=p.uid) }}">
+<form method="post" action="{{ url_for('set_friendships', save_id=farm.id, uid=p.uid) }}" data-savebar>
 <p class="help">{{ t('friends.help', per_heart=POINTS_PER_HEART, ten_hearts=(10 * POINTS_PER_HEART)|gold, max=MAX_POINTS|gold) }}</p>
 <div class="friends" data-points-per-heart="{{ POINTS_PER_HEART }}">
 {% for f in friendships %}
@@ -315,6 +334,7 @@
 <p class="empty">{{ t('friends.none', name=p.name) }}</p>
 {% endif %}
 </section>
+</div>
 
 <script src="{{ url_for('static', filename='items.js') }}"></script>
 <script>
@@ -427,8 +447,17 @@ document.querySelectorAll('form.recipes').forEach(form => {
       rows.filter(row => !row.hidden).forEach(row => {
         row.querySelector('input').checked = button.dataset.check === 'all';
       });
+      form.dispatchEvent(new Event('change', { bubbles: true }));  // the save bar counts them
     }));
   filter.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+});
+
+// Skill level bars follow their field
+document.querySelectorAll('[data-level-bar]').forEach(input => {
+  const pips = [...input.parentElement.querySelectorAll('.level-bar i')];
+  const draw = () => pips.forEach((pip, i) => pip.classList.toggle('on', i < (+input.value || 0)));
+  input.addEventListener('input', draw);
+  input.form.addEventListener('change', draw);
 });
 
 // Shows the hearts next to each field and updates them while typing
@@ -437,7 +466,7 @@ document.querySelectorAll('.hearts').forEach(span => {
   const input = document.querySelector(`[name="${span.dataset.for}"]`);
   const draw = () => {
     const h = Math.min(14, Math.floor((+input.value || 0) / perHeart));
-    span.textContent = '♥'.repeat(h) + '♡'.repeat(Math.max(0, 10 - h));
+    window.drawHearts(span, h, 10);  // up to 14 for a spouse: the extra ones add up
   };
   input.addEventListener('input', draw); draw();
 });

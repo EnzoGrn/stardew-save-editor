@@ -120,3 +120,14 @@ def test_data_status(game, tmp_path):
 
     (game / "Content (unpacked)" / "Data" / "Objects.json").unlink()
     assert gamefolder.data_status(game) == gamefolder.MISSING
+
+
+# ---------------------------------------------------------------------- interface icons
+def test_interface_icons(game):
+    data = GameData.load(game)
+    assert data.ui_icon("quality_4") == {"sheet": "LooseSprites/Cursors", "x": 346, "y": 392, "w": 8, "h": 8,
+                                         "sheet_w": 704, "sheet_h": 2256}
+    assert data.ui_icon("weather_Snow")["x"] == 401
+    assert data.ui_icon("quality_0") is None      # normal quality has no star
+    (game / "Content (unpacked)" / "LooseSprites" / "Cursors.png").unlink()
+    assert GameData.load(game).ui_icon("heart") is None  # no sheet: the pages show text instead

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_ui.html" import icon, gold_amount with context %}
 {% block content %}
 <h1>{{ t('bundles.title') }}</h1>
 
@@ -23,9 +24,9 @@
       <ul class="ingredients">
       {% for ing in b.ingredients %}
         <li class="{{ 'given' if ing.donated }}" title="{{ ing.name }}">
-          <span class="icon-box" aria-hidden="true">{% if ing.icon %}<span class="sprite" data-icon="{{ ing.icon }}"></span>{% endif %}</span>
+          <span class="icon-box" aria-hidden="true">{% if ing.icon %}<span class="sprite" data-icon="{{ ing.icon }}"></span>{% elif ing.gold %}{{ icon('gold') }}{% endif %}</span>
           <span class="ingredient-name">{{ ing.name }}{% if not ing.gold and ing.count > 1 %} ×{{ ing.count }}{% endif %}
-            {% if not ing.gold and ing.quality %}<small class="quality-tag">{{ t('quality.' ~ ing.quality, default='') }}</small>{% endif %}</span>
+            {% if not ing.gold and ing.quality %}<small class="quality-tag">{{ icon('quality_' ~ ing.quality, t('quality.' ~ ing.quality, default='')) }}</small>{% endif %}</span>
           {% if ing.donated %}<span class="given-mark" aria-label="{{ t('bundles.given') }}">✓</span>{% endif %}
         </li>
       {% endfor %}

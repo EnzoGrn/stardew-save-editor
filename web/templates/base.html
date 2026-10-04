@@ -8,13 +8,30 @@
 <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <script>
+// Hearts (friendships, animals): the game's sprites when there is game data, ♥ ♡ otherwise
+window.drawHearts = (span, full, total) => {
+  const art = document.body.dataset;
+  if (!art.heart) {
+    span.textContent = '♥'.repeat(full) + '♡'.repeat(Math.max(0, total - full));
+    return;
+  }
+  span.replaceChildren(...Array.from({ length: Math.max(full, total) }, (_, i) => {
+    const heart = document.createElement('span');
+    heart.className = 'sprite heart-icon';
+    heart.style.cssText = i < full ? art.heart : art.heartEmpty;
+    return heart;
+  }));
+};
+
 try { if (localStorage.getItem('warningDismissed')) document.documentElement.classList.add('no-warning'); } catch (e) {}
 </script>
 </head>
-<body>
+<body {% if ui_icon('heart') %}data-heart="{{ ui_icon('heart') }}" data-heart-empty="{{ ui_icon('heart_empty') }}"{% endif %}>
 <header class="top">
   <a class="brand" href="{{ url_for('index') }}">{{ t('app.title') }}</a>
-  {% if farm %}<span class="where">{{ t('farm.title', name=farm.farm_name) }} · {{ t('date.full', season=t('season.' ~ farm.season, default=farm.season), day=farm.day, year=farm.year) }}</span>{% endif %}
+  {% if farm %}<span class="where">{{ t('farm.title', name=farm.farm_name) }} ·
+    {% if ui_icon('season_' ~ farm.season) %}<span class="sprite ui-icon" data-icon="{{ ui_icon('season_' ~ farm.season) }}" aria-hidden="true"></span>{% endif %}
+    {{ t('date.full', season=t('season.' ~ farm.season, default=farm.season), day=farm.day, year=farm.year) }}</span>{% endif %}
   {% if languages|length > 1 %}
   <form method="post" action="{{ url_for('set_language') }}" class="lang-switch" aria-label="{{ t('lang.label') }}">
     {% for code, name in languages.items() %}
@@ -25,45 +42,107 @@ try { if (localStorage.getItem('warningDismissed')) document.documentElement.cla
   {% endif %}
 </header>
 
-<main>
-  <div class="warning" role="note">
-    <p>{{ t('warning.close_game') }}</p>
-    <button type="button" class="flash-close" aria-label="{{ t('warning.hide') }}">×</button>
-  </div>
-
-  {% with msgs = get_flashed_messages(with_categories=true) %}
-    {% for cat, msg in msgs %}
-    <div class="flash {{ cat }}" role="{{ 'alert' if cat == 'error' else 'status' }}">
-      <p>{{ msg }}</p>
-      <button type="button" class="flash-close" aria-label="{{ t('flash.close') }}">×</button>
-    </div>
-    {% endfor %}
-  {% endwith %}
-
+<div class="shell {{ 'with-nav' if farm }}">
   {% if farm %}
-  <a class="back" href="{{ url_for('index') }}">← {{ t('nav.all_saves') }}</a>
-  <nav class="tabs" aria-label="{{ t('nav.sections') }}">
-    <a href="{{ url_for('farm', save_id=farm.id) }}" {% if tab == 'farm' %}aria-current="page"{% endif %}>{{ t('nav.farm') }}</a>
-    {% for pl in players if pl.customized %}
-      <a href="{{ url_for('player', save_id=farm.id, uid=pl.uid) }}" {% if tab == pl.uid %}aria-current="page"{% endif %}>{{ pl.name }}</a>
-    {% endfor %}
-    <a href="{{ url_for('animals', save_id=farm.id) }}" {% if tab == 'animals' %}aria-current="page"{% endif %}>{{ t('nav.animals') }}</a>
-    <a href="{{ url_for('bundles', save_id=farm.id) }}" {% if tab == 'bundles' %}aria-current="page"{% endif %}>{{ t('nav.bundles') }}</a>
-    <a href="{{ url_for('chests', save_id=farm.id) }}" {% if tab == 'chests' %}aria-current="page"{% endif %}>{{ t('nav.chests') }}</a>
-    <a href="{{ url_for('museum', save_id=farm.id) }}" {% if tab == 'museum' %}aria-current="page"{% endif %}>{{ t('nav.museum') }}</a>
-    <a href="{{ url_for('backups', save_id=farm.id) }}" {% if tab == 'backups' %}aria-current="page"{% endif %}>{{ t('nav.backups') }}</a>
+  <nav class="sidebar" aria-label="{{ t('nav.sections') }}">
+    <a class="back" href="{{ url_for('index') }}">← {{ t('nav.all_saves') }}</a>
+    <p class="nav-group">{{ t('nav.group_farm') }}</p>
+    <ul>
+      {% for endpoint, key, label in (('farm', 'farm', 'nav.farm'), ('animals', 'animals', 'nav.animals'),
+                                      ('chests', 'chests', 'nav.chests'), ('bundles', 'bundles', 'nav.bundles'),
+                                      ('museum', 'museum', 'nav.museum')) %}
+      <li><a href="{{ url_for(endpoint, save_id=farm.id) }}" {% if tab == key %}aria-current="page"{% endif %}>{{ t(label) }}</a></li>
+      {% endfor %}
+    </ul>
+    <p class="nav-group">{{ t('nav.group_farmers') }}</p>
+    <ul>
+      {% for pl in players if pl.customized %}
+      <li><a href="{{ url_for('player', save_id=farm.id, uid=pl.uid) }}" {% if tab == pl.uid %}aria-current="page"{% endif %}>
+        {{ pl.name }}{% if pl.is_host %} <small>{{ t('role.host') }}</small>{% endif %}</a></li>
+      {% endfor %}
+    </ul>
+    <ul class="nav-bottom">
+      <li><a href="{{ url_for('backups', save_id=farm.id) }}" {% if tab == 'backups' %}aria-current="page"{% endif %}>{{ t('nav.backups') }}</a></li>
+    </ul>
   </nav>
   {% endif %}
 
-  <div class="board">{% block content %}{% endblock %}</div>
-</main>
+  <main>
+    <div class="warning" role="note">
+      <p>{{ t('warning.close_game') }}</p>
+      <button type="button" class="flash-close" aria-label="{{ t('warning.hide') }}">×</button>
+    </div>
+
+    {% with msgs = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in msgs %}
+      <div class="flash {{ cat }}" role="{{ 'alert' if cat == 'error' else 'status' }}">
+        <p>{{ msg }}</p>
+        <button type="button" class="flash-close" aria-label="{{ t('flash.close') }}">×</button>
+      </div>
+      {% endfor %}
+    {% endwith %}
+
+    <div class="board">{% block content %}{% endblock %}</div>
+  </main>
+</div>
+<div class="savebar" role="region" aria-label="{{ t('savebar.label') }}" hidden
+     data-one="{{ t('savebar.count.one', n='{n}') }}" data-other="{{ t('savebar.count.other', n='{n}') }}"
+     data-saving="{{ t('savebar.saving') }}">
+  <span class="savebar-count" aria-live="polite"></span>
+  <button type="button" class="secondary" data-undo>{{ t('savebar.undo') }}</button>
+  <button type="button" data-save>{{ t('savebar.save') }}</button>
+</div>
 <script>
+// Sprites from the game: the position comes in data-icon (kept out of style attributes)
+document.querySelectorAll('[data-icon]').forEach(el => { el.style.cssText = el.dataset.icon; });
+
+// A select whose options carry an icon (quality, season, weather…) shows the chosen one
+// in the sprite just before it
+document.querySelectorAll('select[data-icon-select]').forEach(select => {
+  const sprite = select.previousElementSibling;
+  const draw = () => {
+    const css = select.selectedOptions[0]?.dataset.optionIcon || '';
+    if (sprite?.classList.contains('sprite')) { sprite.style.cssText = css; sprite.hidden = !css; }
+  };
+  select.addEventListener('change', draw);
+  select.form?.addEventListener('change', draw);  // the save bar's undo resets the whole form
+  draw();
+});
+
 // Forms (or single buttons) that need confirming: the question is in data-confirm
 document.querySelectorAll('form').forEach(form =>
   form.addEventListener('submit', event => {
     const question = event.submitter?.dataset.confirm || form.dataset.confirm;
     if (question && !confirm(question)) event.preventDefault();
   }));
+
+// Sub-tabs (a farmer's page): one pane shown at a time, picked by the address' #anchor,
+// which may point at the pane or at anything inside it (#skills, #recipes-crafting…)
+const subtabs = document.querySelector('.subtabs');
+if (subtabs) {
+  document.documentElement.classList.add('has-panes');
+  const panes = [...document.querySelectorAll('.pane')];
+  const show = (hash, scroll) => {
+    const target = hash ? document.getElementById(decodeURIComponent(hash.slice(1))) : null;
+    const pane = target?.closest('.pane') || panes[0];
+    panes.forEach(p => p.classList.toggle('active', p === pane));
+    subtabs.querySelectorAll('[data-pane-link]').forEach(link => {
+      const current = 'pane-' + link.dataset.paneLink === pane.id;
+      link.setAttribute('aria-selected', current ? 'true' : 'false');
+    });
+    // A section deeper in the pane is scrolled to; a pane's own tab keeps the page still
+    if (scroll && target && target !== pane.querySelector('section')) target.scrollIntoView({ block: 'start' });
+  };
+  subtabs.addEventListener('click', event => {
+    const link = event.target.closest('[data-pane-link]');
+    if (!link) return;
+    event.preventDefault();
+    history.replaceState(null, '', link.getAttribute('href'));
+    show(link.getAttribute('href'), false);
+  });
+  window.addEventListener('hashchange', () => show(location.hash, true));
+  show(location.hash, true);
+}
 
 document.querySelectorAll('.flash-close').forEach(btn =>
   btn.addEventListener('click', () => {
@@ -75,5 +154,6 @@ document.querySelectorAll('.flash-close').forEach(btn =>
     box.remove();
   }));
 </script>
+<script src="{{ url_for('static', filename='savebar.js') }}"></script>
 </body>
 </html>

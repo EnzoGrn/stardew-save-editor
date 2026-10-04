@@ -48,7 +48,7 @@ Backups are stored next to the `Saves` folder, in `SaveManagerBackups/<save>/`. 
 
 ## Game data
 
-Some features need the game's own data: item names and icons, adding items, tool upgrades, the full recipe list, changing clothes and the appearance previews, the museum's empty displays (read from its map), donating and the missing pieces. The app reads it from your copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack) (MIT licence). Without it, everything else keeps working.
+Some features need the game's own data: item names and icons, adding items, tool upgrades, the full recipe list, changing clothes and the appearance previews, the museum's empty displays (read from its map), donating and the missing pieces, and the game's own interface icons (quality stars, hearts, gold, seasons, weather) used throughout the pages. The app reads it from your copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack) (MIT licence). Without it, everything else keeps working.
 
 On the home page, under **Game data**:
 
@@ -95,7 +95,8 @@ web/                Flask UI
   picker.py         native folder picker
   settings.py       remembered settings (folders, language)
   unpacker.py       one-click game data preparation, in the background
-  templates/        HTML pages
+  templates/        HTML pages (_ui.html: the game's interface icons, with text fallbacks)
+  static/savebar.js one save bar per page, for every form that edits values
   static/style.css
   static/items.js   item icons and the add-item search, shared by the inventory and chests
   static/farmer.js  full farmer preview, layering the game's sprites like the game does

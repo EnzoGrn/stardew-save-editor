@@ -1,0 +1,17 @@
+{# Icons of the game's own interface (LooseSprites/Cursors.png), each with a text fallback.
+   Import with: {% from "_ui.html" import icon with context %} #}
+
+{# One icon; without game data, its text instead. text also labels the icon for screen readers. #}
+{% macro icon(name, text='', scale=2, cls='') -%}
+{%- set css = ui_icon(name, scale) -%}
+{%- if css -%}
+<span class="sprite ui-icon {{ cls }}" data-icon="{{ css }}" {% if text %}role="img" aria-label="{{ text }}" title="{{ text }}"{% else %}aria-hidden="true"{% endif %}></span>
+{%- else -%}{{ text }}{%- endif -%}
+{%- endmacro %}
+
+{# An amount of gold: the coin, then the number #}
+{% macro gold_amount(amount) -%}
+{%- set css = ui_icon('gold', 2) -%}
+{%- if css -%}<span class="gold-amount"><span class="sprite ui-icon" data-icon="{{ css }}" aria-hidden="true"></span>{{ amount|gold }}</span>
+{%- else -%}{{ t('format.gold', amount=amount|gold) }}{%- endif -%}
+{%- endmacro %}

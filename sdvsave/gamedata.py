@@ -566,6 +566,39 @@ class GameData:
         return self._icon_at(sheet, 0, width, height)
 
 
+    # ------------------------------------------------------------------ interface icons
+    # Small icons of the game's own interface, on LooseSprites/Cursors.png: (x, y, w, h).
+    # Checked against the 1.6 sheet. Weather icons are the ones of the clock, in the order
+    # wedding, festival, sun, wind (spring), rain, storm, wind (fall), snow.
+    UI_SHEET = "LooseSprites/Cursors"
+    UI_SPRITES = {
+        "quality_1": (338, 400, 8, 8), "quality_2": (346, 400, 8, 8), "quality_4": (346, 392, 8, 8),
+        "heart": (211, 428, 7, 6), "heart_empty": (218, 428, 7, 6),
+        "gold": (193, 373, 9, 10),
+        "season_spring": (406, 441, 12, 8), "season_summer": (406, 449, 12, 8),
+        "season_fall": (406, 457, 12, 8), "season_winter": (406, 465, 12, 8),
+        "weather_Wedding": (317, 421, 12, 8), "weather_Festival": (329, 421, 12, 8),
+        "weather_Sun": (341, 421, 12, 8), "weather_Wind": (353, 421, 12, 8),
+        "weather_Rain": (365, 421, 12, 8), "weather_Storm": (377, 421, 12, 8),
+        "weather_Snow": (401, 421, 12, 8),
+        "weather_GreenRain": (365, 421, 12, 8),  # no icon of its own on this sheet: rain's
+        # Skills, as on the skills page (ids of constants.SKILLS)
+        "skill_farming": (10, 428, 10, 10), "skill_fishing": (20, 428, 10, 10),
+        "skill_foraging": (60, 428, 10, 10), "skill_mining": (30, 428, 10, 10),
+        "skill_combat": (120, 428, 10, 10), "skill_luck": (50, 428, 10, 10),
+    }
+
+    def ui_icon(self, name):
+        """One interface icon as an icon dict, or None (unknown name or no Cursors.png)."""
+        if name not in self.UI_SPRITES:
+            return None
+        size = self._sheet_size(self.UI_SHEET)
+        if size is None:
+            return None
+        x, y, w, h = self.UI_SPRITES[name]
+        return {"sheet": self.UI_SHEET, "x": x, "y": y, "w": w, "h": h, "sheet_w": size[0], "sheet_h": size[1]}
+
+
 def _tmx_layer_gids(data):
     """Tile ids of a TMX layer, whatever its encoding (csv, or base64 maybe compressed)."""
     if data is None:

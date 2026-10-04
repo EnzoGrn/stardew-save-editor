@@ -10,7 +10,7 @@
 
   "nav.all_saves": "All saves",
   "nav.sections": "Save sections",
-  "nav.farm": "Farm",
+  "nav.farm": "Info and calendar",
   "nav.backups": "Backups",
 
   "action.save": "Save",
@@ -518,5 +518,18 @@
   "quest_type.CraftingQuest": "Crafting",
   "quest_type.GoSomewhereQuest": "Trip",
   "quest_type.HaveBuildingQuest": "Building",
-  "quest_type.Quest": "Story"
+  "quest_type.Quest": "Story",
+
+  "nav.group_farm": "The farm",
+  "nav.group_farmers": "Farmers",
+  "player.sections": "Farmer sections",
+  "player.tab_profile": "Profile",
+
+  "savebar.label": "Unsaved changes",
+  "savebar.count.one": "{n} change not saved",
+  "savebar.count.other": "{n} changes not saved",
+  "savebar.saving": "Saving…",
+  "savebar.undo": "Undo",
+  "savebar.save": "Save",
+  "animals.hearts_hint": "Click a heart to set the friendship (200 points per heart)"
 }

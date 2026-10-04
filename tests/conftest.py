@@ -125,7 +125,7 @@ def game(tmp_path):
                           "Characters/Farmer/hats": (240, 1600), "Characters/Farmer/shirts": (256, 608),
                           "Characters/Farmer/pants": (1920, 1376), "Characters/Farmer/hairstyles": (128, 672),
                           "Characters/Farmer/hairstyles2": (128, 672), "Characters/Farmer/accessories": (128, 128),
-                          "Characters/Farmer/skinColors": (3, 24)}.items():
+                          "Characters/Farmer/skinColors": (3, 24), "LooseSprites/Cursors": (704, 2256)}.items():
         png = data.joinpath(*sheet.split("/")).with_suffix(".png")
         png.parent.mkdir(parents=True, exist_ok=True)
         png.write_bytes(b"\x89PNG\r\n\x1a\n" + struct.pack(">I4sII", 13, b"IHDR", w, h) + b"\0" * 5)
