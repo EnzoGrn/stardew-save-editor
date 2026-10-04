@@ -13,7 +13,7 @@ from lxml import etree
 from . import appearance as look, items, xmlio
 from .constants import (
     SKILLS, XP_FOR_LEVEL, QUALITIES, POINTS_PER_HEART, MAX_FRIENDSHIP_POINTS,
-    BACKPACK_SIZES, XSI,
+    BACKPACK_SIZES, SEASONS, XSI,
 )
 from .errors import NotFound, SaveChangedError, SaveError, T
 
@@ -904,3 +904,90 @@ class SaveGame:
                     etree.SubElement(residents, "long").text = str(animal_id)
             if home_building.find("currentOccupants") is not None:
                 _set(home_building, "currentOccupants", len(house.find("animals")))
+
+    # ------------------------------------------------------------------ calendar and weather
+    # The date is on the save root (<currentSeason> as "spring"…, <dayOfMonth>, <year>), and on
+    # each farmer for the load screen (<seasonForSaveGame> 0-3, <dayOfMonthForSaveGame>,
+    # <yearForSaveGame>), with the days they played in <stats><Values> "daysPlayed".
+    # A farmhand keeps the date of their last session: only the farmers at the current
+    # date move with it, and their days played shift by the same number of days.
+    # Tomorrow's weather is on the root (<weatherForTomorrow>, for the valley) and in
+    # <locationWeather>, one entry per weather context ("Default", "Island"), each writing
+    # it twice (<weatherForTomorrow><string> and <WeatherForTomorrow>).
+    DAYS_PER_SEASON = 28
+    WEATHERS = ("Sun", "Rain", "Storm", "Wind", "Snow", "GreenRain")
+    ISLAND_WEATHERS = ("Sun", "Rain")
+    #: Weather contexts that can be changed (the desert is always sunny)
+    WEATHER_CONTEXTS = ("Default", "Island")
+
+    @classmethod
+    def _total_days(cls, season, day, year):
+        return ((year - 1) * len(SEASONS) + SEASONS.index(season)) * cls.DAYS_PER_SEASON + day
+
+    def _weather_contexts(self):
+        """{context: LocationWeather element} from <locationWeather>."""
+        found = {}
+        for item in self.root.findall("locationWeather/item"):
+            weather = item.find("value/LocationWeather")
+            if weather is not None:
+                found[item.findtext("key/string")] = weather
+        return found
+
+    def calendar(self):
+        root = self.root
+        tomorrow = {context: weather.findtext("WeatherForTomorrow") or weather.findtext("weatherForTomorrow/string")
+                    for context, weather in self._weather_contexts().items() if context in self.WEATHER_CONTEXTS}
+        if not tomorrow:  # older saves: only the root field
+            tomorrow = {"Default": root.findtext("weatherForTomorrow")}
+        return {"season": root.findtext("currentSeason"), "day": _int(root, "dayOfMonth"),
+                "year": _int(root, "year"), "weather_tomorrow": tomorrow}
+
+    @staticmethod
+    def _days_played(farmer):
+        for item in farmer.findall("stats/Values/item"):
+            if item.findtext("key/string") == "daysPlayed":
+                return item.find("value/unsignedInt")
+        return None
+
+    def set_date(self, season, day, year):
+        """Moves the game to another date; returns the change in days (negative going back)."""
+        if season not in SEASONS:
+            raise SaveError("error.bad_choice", field=T("field.season"), value=season)
+        day = bounded(day, 1, self.DAYS_PER_SEASON, "field.day")
+        year = bounded(year, 1, 999, "field.year")
+        root = self.root
+        old_season, old_day, old_year = root.findtext("currentSeason"), _int(root, "dayOfMonth"), _int(root, "year")
+        delta = self._total_days(season, day, year) - self._total_days(old_season, old_day, old_year)
+        _set(root, "currentSeason", season)
+        _set(root, "dayOfMonth", day)
+        _set(root, "year", year)
+        old = (str(old_day), str(SEASONS.index(old_season)), str(old_year))
+        for farmer in [el for el, _ in self._farmers()] + [self.info.getroot()]:
+            date = tuple(farmer.findtext(t) for t in ("dayOfMonthForSaveGame", "seasonForSaveGame", "yearForSaveGame"))
+            if date != old:
+                continue  # a farmhand away since an earlier day
+            _set(farmer, "dayOfMonthForSaveGame", day)
+            _set(farmer, "seasonForSaveGame", SEASONS.index(season))
+            _set(farmer, "yearForSaveGame", year)
+            played = self._days_played(farmer)
+            if played is not None:
+                played.text = str(max(1, int(played.text or 0) + delta))
+        return delta
+
+    def set_weather_tomorrow(self, context, weather):
+        if context not in self.WEATHER_CONTEXTS:
+            raise SaveError("error.bad_choice", field=T("field.weather"), value=context)
+        allowed = self.ISLAND_WEATHERS if context == "Island" else self.WEATHERS
+        if weather not in allowed:
+            raise SaveError("error.bad_choice", field=T("field.weather"), value=weather)
+        contexts = self._weather_contexts()
+        if context not in contexts and not (context == "Default" and not contexts):
+            raise SaveError("error.bad_choice", field=T("field.weather"), value=context)
+        if context in contexts:
+            entry = contexts[context]
+            for path in ("weatherForTomorrow/string", "WeatherForTomorrow"):
+                node = entry.find(path)
+                if node is not None:
+                    node.text = weather
+        if context == "Default" and self.root.find("weatherForTomorrow") is not None:
+            _set(self.root, "weatherForTomorrow", weather)

@@ -6,7 +6,7 @@ from flask import (Flask, abort, flash, g, jsonify, redirect, render_template, r
                    send_file, url_for)
 
 from sdvsave import SaveGame, SaveError, backup, default_saves_dir, gamefolder, list_saves
-from sdvsave.constants import QUALITIES, POINTS_PER_HEART, MAX_FRIENDSHIP_POINTS, BACKPACK_SIZES
+from sdvsave.constants import QUALITIES, POINTS_PER_HEART, MAX_FRIENDSHIP_POINTS, BACKPACK_SIZES, SEASONS
 from sdvsave import appearance, items
 from sdvsave.constants import XSI
 from sdvsave.gamedata import GameData, find_data_dir
@@ -120,7 +120,7 @@ def load(save_id):
 def edit(save_id, change, message, reason=backup.AUTO_EDIT, result_as=None):
     """Loads, applies the change, makes a backup, then writes.
 
-    message   : key of the success message
+    message   : key of the success message (a change returning a dict with "message" replaces it)
     result_as : name of the message parameter that receives change's return value
                 (a change returning a dict gives all the message parameters itself)
 
@@ -133,6 +133,7 @@ def edit(save_id, change, message, reason=backup.AUTO_EDIT, result_as=None):
         name = backup.create(saves_dir(), save_id, reason)
         sg.write()
         params = result if isinstance(result, dict) else ({result_as: result} if result_as else {})
+        message = params.pop("message", message)  # a change may pick another message
         flash(f"{t(message, **params)} {t('flash.backup_made', name=name)}", "ok")
     except SaveError as exc:
         flash(i18n.translate_error(current_lang(), exc), "error")
@@ -226,7 +227,9 @@ def game_data_status():
 @app.route("/save/<save_id>")
 def farm(save_id):
     sg = load(save_id)
-    return render_template("farm.html", farm=sg.farm(), players=sg.players(), tab="farm")
+    return render_template("farm.html", farm=sg.farm(), players=sg.players(), calendar=sg.calendar(),
+                           seasons=SEASONS, weathers=SaveGame.WEATHERS, island_weathers=SaveGame.ISLAND_WEATHERS,
+                           days_per_season=SaveGame.DAYS_PER_SEASON, tab="farm")
 
 
 @app.route("/save/<save_id>/player/<uid>")
@@ -704,6 +707,23 @@ def set_walnuts(save_id):
     edit(save_id, lambda sg: sg.set_golden_walnuts(request.form["golden_walnuts"]),
          "flash.walnuts_saved")
     return redirect(url_for("farm", save_id=save_id))
+
+
+@app.post("/save/<save_id>/calendar")
+def set_calendar(save_id):
+    form = request.form
+
+    def change(sg):
+        delta = sg.set_date(form.get("season", ""), form.get("day"), form.get("year"))
+        for context in SaveGame.WEATHER_CONTEXTS:
+            if form.get(f"weather_{context}"):
+                sg.set_weather_tomorrow(context, form[f"weather_{context}"])
+        if delta == 0:
+            return {"message": "flash.weather_saved"}
+        return {"n": abs(delta), "direction": T("calendar.forward" if delta > 0 else "calendar.back")}
+
+    edit(save_id, change, "flash.calendar_saved")
+    return redirect(url_for("farm", save_id=save_id) + "#calendar")
 
 
 @app.post("/save/<save_id>/rename-farm")

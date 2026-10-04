@@ -23,6 +23,33 @@
   <input id="golden_walnuts" name="golden_walnuts" type="number" min="0" max="130" value="{{ farm.golden_walnuts }}">
   <button>{{ t('action.save') }}</button>
 </form>
+<section id="calendar">
+<h2>{{ t('calendar.title') }}</h2>
+<form method="post" action="{{ url_for('set_calendar', save_id=farm.id) }}" class="calendar"
+      data-confirm="{{ t('calendar.confirm') }}">
+  <div class="fields">
+    <label><span class="field-label">{{ t('field.season') }}</span><span class="field-hint"></span>
+      <select name="season">{% for s in seasons %}<option value="{{ s }}" {% if s == calendar.season %}selected{% endif %}>{{ t('season.' ~ s) }}</option>{% endfor %}</select></label>
+    <label><span class="field-label">{{ t('field.day') }}</span><span class="field-hint"></span>
+      <input name="day" type="number" min="1" max="{{ days_per_season }}" value="{{ calendar.day }}"></label>
+    <label><span class="field-label">{{ t('field.year') }}</span><span class="field-hint"></span>
+      <input name="year" type="number" min="1" max="999" value="{{ calendar.year }}"></label>
+  </div>
+  <div class="fields">
+  {% for context, current in calendar.weather_tomorrow.items() %}
+    <label><span class="field-label">{{ t('calendar.weather_' ~ context) }}</span>
+      <span class="field-hint">{{ t('calendar.weather_hint_' ~ context) }}</span>
+      <select name="weather_{{ context }}">
+        {% for w in (island_weathers if context == 'Island' else weathers) %}<option value="{{ w }}" {% if w == current %}selected{% endif %}>{{ t('weather.' ~ w) }}</option>{% endfor %}
+        {% if current not in (island_weathers if context == 'Island' else weathers) %}<option value="" selected>{{ t('weather.' ~ current, default=current) }}</option>{% endif %}
+      </select></label>
+  {% endfor %}
+  </div>
+  <p class="note standalone">{{ t('calendar.note') }}</p>
+  <button>{{ t('calendar.save') }}</button>
+</form>
+</section>
+
 <h2>{{ t('accounts.title') }}</h2>
 <p class="help">{{ t('accounts.help') }}</p>
 
