@@ -35,6 +35,7 @@ To use another folder, run `python run.py --saves "D:\MySaves"`, or pick it from
 - Inventory: item quantity and quality, item names in your language, and with game data: item icons, adding objects and machines (search by name), removing items, moving them by drag and drop, tool upgrade levels (basic to iridium)
 - Recipes: learn or forget cooking and crafting recipes, all at once or one by one (with game data; without it, known recipes can be removed)
 - Appearance: gender, skin, hairstyle, accessory, hair and eye colors, and the clothes worn (shirt, pants, hat, boots) with their dye colors; with game data, every choice shows the game's sprite, tinted like in the game, next to a full preview of the farmer drawn from the game's own sprites
+- Quests: each farmer's journal with rewards and what each quest asks; complete a quest (its reward is then collected in the game's journal) or remove one
 - Calendar and weather: change the day, season and year (with the days played and the load screen date following), and tomorrow's weather in the valley and on Ginger Island
 - Community Center: every bundle by room with what was given; complete a bundle (restoring the room when it's the last one, with what it unlocks) or reset one in a room not restored yet
 - Animals: every farm animal by house; rename, change friendship (with hearts) and happiness, move to another coop or barn with room

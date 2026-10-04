@@ -258,6 +258,42 @@
 {% endfor %}
 </section>
 
+<section id="quests">
+<h2>{{ t('quests.title') }}</h2>
+{% if quests %}
+<p class="help">{{ t('quests.help') }}</p>
+<ul class="quest-list">
+{% for q in quests %}
+  <li class="quest {{ 'done' if q.completed }}">
+    <div class="quest-main">
+      <strong>{{ q.title or t('quests.untitled', id=q.id) }}</strong>
+      <small class="muted">
+        {{ t('quest_type.' ~ q.type, default=q.type) }}
+        {% if q.target %} · {{ t('quests.for', name=q.target) }}{% endif %}
+        {% if q.item_name %} · {% if q.item_icon %}<span class="sprite" data-icon="{{ q.item_icon }}" aria-hidden="true"></span>{% endif %}{{ q.item_name }}{% if q.number > 1 %} ×{{ q.number }}{% endif %}{% endif %}
+        {% if q.daily and q.days_left %} · {{ t('quests.days_left', n=q.days_left) }}{% endif %}
+      </small>
+    </div>
+    <span class="quest-reward">{% if q.reward > 0 %}{{ t('format.gold', amount=q.reward|gold) }}{% endif %}</span>
+    <span class="quest-state">{% if q.completed %}<span class="reward-waiting">{{ t('quests.to_collect') }}</span>{% endif %}</span>
+    <div class="quest-actions">
+      {% if not q.completed %}
+      <form method="post" action="{{ url_for('change_quest', save_id=farm.id, uid=p.uid, index=q.index, action='complete') }}"
+            data-confirm="{{ t('quests.confirm_complete', name=q.title) }}">
+        <button class="secondary">{{ t('quests.complete') }}</button></form>
+      {% endif %}
+      <form method="post" action="{{ url_for('change_quest', save_id=farm.id, uid=p.uid, index=q.index, action='remove') }}"
+            data-confirm="{{ t('quests.confirm_remove' if q.cancellable else 'quests.confirm_remove_story', name=q.title) }}">
+        <button class="secondary">{{ t('quests.remove') }}</button></form>
+    </div>
+  </li>
+{% endfor %}
+</ul>
+{% else %}
+<p class="empty">{{ t('quests.none', name=p.name) }}</p>
+{% endif %}
+</section>
+
 <section id="friends">
 <h2>{{ t('friends.title') }}</h2>
 {% if friendships %}

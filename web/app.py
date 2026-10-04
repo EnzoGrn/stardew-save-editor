@@ -246,7 +246,27 @@ def player(save_id, uid):
                            free_slots=[s["slot"] for s in inventory if s["empty"]],
                            recipes=recipe_lists(sg.recipes(uid), data),
                            look=look_view(sg.appearance(uid), data),
+                           quests=quests_view(sg.quests(uid), data),
                            has_game_data=data is not None, tab=uid)
+
+
+def quests_view(quests, data):
+    """Quests with the item they ask for named in the UI language (the save keeps it as an id)."""
+    for quest in quests:
+        quest["item_name"], quest["item_icon"] = None, None
+        if quest["item"]:
+            qualified, name, icon = _bundle_item(quest["item"], data)
+            quest["item_name"], quest["item_icon"] = (name if name != quest["item"] else None), icon
+    return quests
+
+
+@app.post("/save/<save_id>/player/<uid>/quests/<int:index>/<action>")
+def change_quest(save_id, uid, index, action):
+    if action not in ("complete", "remove"):
+        abort(404)
+    method = {"complete": "complete_quest", "remove": "remove_quest"}[action]
+    edit(save_id, lambda sg: getattr(sg, method)(uid, index), f"flash.quest_{action}d", result_as="title")
+    return redirect(url_for("player", save_id=save_id, uid=uid) + "#quests")
 
 
 def recipe_lists(known, data):

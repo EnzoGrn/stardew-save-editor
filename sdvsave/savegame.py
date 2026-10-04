@@ -1100,3 +1100,53 @@ class SaveGame:
             raise SaveError("error.room_restored")
         self._set_flags("bundles", bundle_id, False)
         self._set_flags("bundleRewards", bundle_id, False)
+
+    # ------------------------------------------------------------------ quests
+    # Each farmer's <questLog> holds their quests (xsi:type ItemDeliveryQuest, SlayMonsterQuest…),
+    # with the title and texts saved in the game's language. A completed quest stays in the
+    # log until the farmer clicks it to collect its reward: the game then pays <moneyReward>
+    # and adds the quests in <nextQuests>. Completing here only sets <completed>, so the
+    # reward and what follows still go through the game.
+
+    def quests(self, uid):
+        result = []
+        for index, quest in enumerate(self._player(uid).find("questLog")):
+            result.append({
+                "index": index, "id": quest.findtext("id") or "",
+                "type": quest.get(XSI + "type") or "Quest",
+                "title": quest.findtext("_questTitle") or quest.findtext("questTitle") or "",
+                "description": quest.findtext("_questDescription") or "",
+                "objective": quest.findtext("_currentObjective") or "",
+                "completed": quest.findtext("completed") == "true",
+                "daily": quest.findtext("dailyQuest") == "true",
+                "days_left": _int(quest, "daysLeft"),
+                "reward": _int(quest, "moneyReward"),
+                # What a delivery or collection quest asks, when it says so
+                "target": quest.findtext("target") or "",
+                "item": quest.findtext("item") or quest.findtext("ItemId") or "",
+                "number": _int(quest, "number", 0),
+                # Story quests can't be dropped in the game: removing one may block what follows
+                "cancellable": quest.findtext("canBeCancelled") == "true" or quest.findtext("dailyQuest") == "true",
+            })
+        return result
+
+    def _quest_copies(self, uid, index):
+        logs = [farmer.find("questLog") for farmer in self._copies(uid)]
+        if not 0 <= index < len(logs[0]):
+            raise SaveError("error.no_quest")
+        return [log[index] for log in logs if log is not None and index < len(log)]
+
+    def complete_quest(self, uid, index):
+        """Marks a quest done: the farmer collects its reward in the journal."""
+        for quest in self._quest_copies(uid, index):
+            _set(quest, "completed", "true")
+            if quest.find("showNew") is not None:
+                _set(quest, "showNew", "true")  # highlighted in the journal, like a quest just done
+        return self.quests(uid)[index]["title"]
+
+    def remove_quest(self, uid, index):
+        """Takes a quest out of the journal; returns its title."""
+        title = self.quests(uid)[index]["title"] if 0 <= index < len(self.quests(uid)) else ""
+        for quest in self._quest_copies(uid, index):
+            quest.getparent().remove(quest)
+        return title
