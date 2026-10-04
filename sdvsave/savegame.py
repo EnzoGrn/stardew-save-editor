@@ -991,3 +991,112 @@ class SaveGame:
                     node.text = weather
         if context == "Default" and self.root.find("weatherForTomorrow") is not None:
             _set(self.root, "weatherForTomorrow", weather)
+
+    # ------------------------------------------------------------------ community center
+    # <bundleData> (save root): "Room/id" → "name/reward/ingredients/color/required/sprite/
+    # display name", ingredients being "id count quality" triples (id -1: gold).
+    # The CommunityCenter location keeps, per bundle id, <bundles>: one flag per token of
+    # the ingredients (the first ones, one per ingredient, say what was given; the game
+    # sets them all when a bundle is completed), and <bundleRewards>: a reward waiting to
+    # be collected. A room is restored when <areasComplete> says so, and the host's
+    # "cc…" mail flags unlock what it gives (greenhouse, bus, minecarts…).
+    CC_ROOMS = ("Pantry", "Crafts Room", "Fish Tank", "Boiler Room", "Vault", "Bulletin Board", "Abandoned Joja Mart")
+    CC_MAIL = ("ccPantry", "ccCraftsRoom", "ccFishTank", "ccBoilerRoom", "ccVault", "ccBulletin")
+
+    def _community_center(self):
+        for location in self.root.findall("locations/GameLocation"):
+            if location.findtext("name") == "CommunityCenter":
+                return location
+        raise NotFound("error.no_community_center")
+
+    @staticmethod
+    def _int_dict(element):
+        """{int key: value element} of a serialized dictionary keyed by <int>."""
+        return {int(item.findtext("key/int")): item.find("value") for item in element} if element is not None else {}
+
+    def _host_mail(self):
+        return [self.root.find("player/mailReceived"), self.info.getroot().find("mailReceived")]
+
+    def community_center(self):
+        """Rooms and bundles with their progress; read-only when the farm chose Joja."""
+        cc = self._community_center()
+        flags = self._int_dict(cc.find("bundles"))
+        rewards = self._int_dict(cc.find("bundleRewards"))
+        areas = [node.text == "true" for node in cc.find("areasComplete")] if cc.find("areasComplete") is not None else []
+        joja = any(m.text == "JojaMember" for m in self.root.find("player/mailReceived"))
+        rooms = {}
+        for item in self.root.findall("bundleData/item"):
+            room, _, raw_id = (item.findtext("key/string") or "").partition("/")
+            fields = (item.findtext("value/string") or "").split("/")
+            if not raw_id.isdigit() or len(fields) < 3:
+                continue
+            bundle_id = int(raw_id)
+            tokens = fields[2].split()
+            states = [node.text == "true" for node in flags[bundle_id].iter("boolean")] if bundle_id in flags else []
+            ingredients = [{"item_id": tokens[i], "count": int(tokens[i + 1]), "quality": int(tokens[i + 2]),
+                            "donated": i // 3 < len(states) and states[i // 3]}
+                           for i in range(0, len(tokens) - 2, 3)]
+            need = int(fields[4]) if len(fields) > 4 and fields[4].strip().isdigit() else len(ingredients)
+            given = sum(1 for ing in ingredients if ing["donated"])
+            area = self.CC_ROOMS.index(room) if room in self.CC_ROOMS else -1
+            restored = 0 <= area < len(areas) and areas[area]
+            rooms.setdefault(room, {"room": room, "area": area, "restored": restored, "bundles": []})
+            rooms[room]["bundles"].append({
+                "id": bundle_id, "name": fields[0], "display": fields[6] if len(fields) > 6 and fields[6] else "",
+                "reward": fields[1], "ingredients": ingredients, "need": need, "given": min(given, need),
+                "complete": given >= need,
+                "reward_waiting": bundle_id in rewards and rewards[bundle_id].findtext("boolean") == "true",
+                # The missing bundle (Joja Mart) and the Joja route are left to the game
+                "editable": not joja and 0 <= area < len(self.CC_MAIL),
+            })
+        return {"joja": joja, "rooms": list(rooms.values())}
+
+    def _bundle(self, bundle_id):
+        for room in self.community_center()["rooms"]:
+            for bundle in room["bundles"]:
+                if bundle["id"] == bundle_id:
+                    return room, bundle
+        raise NotFound("error.no_bundle")
+
+    def _set_flags(self, dictionary_tag, bundle_id, value):
+        node = self._int_dict(self._community_center().find(dictionary_tag)).get(bundle_id)
+        if node is None:
+            return
+        for flag in node.iter("boolean"):
+            flag.text = "true" if value else "false"
+
+    def complete_bundle(self, bundle_id):
+        """Marks every ingredient given and the reward waiting at the Community Center.
+
+        When it was the room's last bundle, the room is marked restored and the host gets
+        its mail flag, which unlocks what the room gives. Returns True in that case.
+        """
+        room, bundle = self._bundle(bundle_id)
+        if not bundle["editable"]:
+            raise SaveError("error.bundle_locked")
+        if bundle["complete"]:
+            return False
+        self._set_flags("bundles", bundle_id, True)
+        if bundle["reward"]:
+            self._set_flags("bundleRewards", bundle_id, True)
+        others_done = all(b["complete"] for b in room["bundles"] if b["id"] != bundle_id)
+        if not others_done or room["restored"]:
+            return False
+        areas = list(self._community_center().find("areasComplete"))
+        if room["area"] < len(areas):
+            areas[room["area"]].text = "true"
+        flag = self.CC_MAIL[room["area"]]
+        for mail in self._host_mail():
+            if mail is not None and not any(m.text == flag for m in mail):
+                etree.SubElement(mail, "string").text = flag
+        return True
+
+    def reset_bundle(self, bundle_id):
+        """Takes every ingredient back out of a bundle (not in a room already restored)."""
+        room, bundle = self._bundle(bundle_id)
+        if not bundle["editable"]:
+            raise SaveError("error.bundle_locked")
+        if room["restored"]:
+            raise SaveError("error.room_restored")
+        self._set_flags("bundles", bundle_id, False)
+        self._set_flags("bundleRewards", bundle_id, False)

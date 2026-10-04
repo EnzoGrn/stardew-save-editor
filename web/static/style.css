@@ -324,3 +324,24 @@ h3 small { font: 400 .9rem var(--body); margin-left: .4rem; }
   .animal { grid-template-columns: 32px 1fr 1fr; }
   .animal-main { grid-column: 2 / -1; }
 }
+
+/* Community Center: bundles by room */
+.cc-room { margin-bottom: 1.4rem; }
+.bundle-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: .8rem; }
+.bundle { display: flex; flex-direction: column; gap: .4rem; padding: .6rem .8rem; background: #fffaf0;
+  border: 2px solid var(--parchment-deep); }
+.bundle.complete { border-color: var(--leaf); }
+.bundle header { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.bundle h3 { margin: 0; font-size: 1.02rem; }
+.bundle-count { font-weight: 800; color: var(--wood); }
+.bundle meter { width: 100%; height: .55rem; }
+.ingredients { list-style: none; margin: 0; padding: 0; display: grid; gap: .15rem; }
+.ingredients li { display: flex; align-items: center; gap: .45rem; padding: .1rem .2rem; opacity: .7; }
+.ingredients li.given { opacity: 1; }
+.ingredient-name { flex: 1; min-width: 0; font-size: .92rem; }
+.quality-tag { font-weight: 800; color: #9a6a00; margin-left: .2rem; }
+.given-mark { color: var(--leaf); font-weight: 800; }
+.bundle-need { margin: 0; font-size: .85rem; }
+.bundle-reward { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; font-size: .92rem; }
+.reward-waiting { font-size: .8rem; font-weight: 800; color: #fff; background: var(--gold); padding: 0 .4rem; }
+.bundle-actions { display: flex; gap: .5rem; margin-top: auto; padding-top: .3rem; }

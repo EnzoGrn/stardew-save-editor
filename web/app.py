@@ -548,6 +548,69 @@ def set_animals(save_id):
     return redirect(url_for("animals", save_id=save_id))
 
 
+# ---------------------------------------------------------------------- community center
+_REWARD_PREFIXES = {"O": "O", "BO": "BC", "R": "O", "F": "F", "H": "H", "B": "B", "W": "W"}
+
+
+def _bundle_item(item_id, data, prefix="O"):
+    """(qualified id, display name, icon) of a bundle ingredient or reward id ("24", "(O)24")."""
+    match = re.fullmatch(r"\((\w+)\)(.+)", item_id)
+    qualified = f"{_REWARD_PREFIXES.get(match.group(1), match.group(1))}:{match.group(2)}" if match \
+        else f"{prefix}:{item_id}"
+    if data is None or qualified not in data.items:
+        return qualified, item_id, None
+    return qualified, data.display_name(qualified, current_lang()), icon_style(data.icon(qualified), fit=24)
+
+
+def bundles_view(cc, data):
+    for room in cc["rooms"]:
+        room["label"] = t("cc_room." + room["room"], default=room["room"])
+        room["done"] = sum(b["complete"] for b in room["bundles"])
+        for bundle in room["bundles"]:
+            bundle["title"] = bundle["display"] or bundle["name"]
+            for ing in bundle["ingredients"]:
+                if ing["item_id"] == "-1":  # gold
+                    ing.update(name=t("format.gold", amount=gold(ing["count"])), icon=None, gold=True)
+                else:
+                    _, ing["name"], ing["icon"] = _bundle_item(ing["item_id"], data)
+            parts = bundle["reward"].split()
+            bundle["reward_item"] = None
+            if len(parts) >= 2:
+                _, name, icon = _bundle_item(parts[1], data, _REWARD_PREFIXES.get(parts[0], "O"))
+                bundle["reward_item"] = {"name": name, "icon": icon,
+                                         "count": int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 1}
+    return cc
+
+
+@app.route("/save/<save_id>/bundles")
+def bundles(save_id):
+    sg = load(save_id)
+    try:
+        cc = bundles_view(sg.community_center(), game_data())
+    except SaveError as exc:
+        flash(i18n.translate_error(current_lang(), exc), "error")
+        return redirect(url_for("farm", save_id=save_id))
+    return render_template("bundles.html", farm=sg.farm(), players=sg.players(), cc=cc,
+                           has_game_data=game_data() is not None, tab="bundles")
+
+
+@app.post("/save/<save_id>/bundles/<int:bundle_id>/<action>")
+def change_bundle(save_id, bundle_id, action):
+    if action not in ("complete", "reset"):
+        abort(404)
+
+    def change(sg):
+        if action == "reset":
+            sg.reset_bundle(bundle_id)
+            return {"message": "flash.bundle_reset"}
+        if sg.complete_bundle(bundle_id):
+            return {"message": "flash.bundle_completed_room"}
+        return None
+
+    edit(save_id, change, "flash.bundle_completed")
+    return redirect(url_for("bundles", save_id=save_id) + f"#bundle-{bundle_id}")
+
+
 # ---------------------------------------------------------------------- museum
 MUSEUM_SIZE = 95  # pieces in the game's museum, when no game data says otherwise
 

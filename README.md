@@ -36,6 +36,7 @@ To use another folder, run `python run.py --saves "D:\MySaves"`, or pick it from
 - Recipes: learn or forget cooking and crafting recipes, all at once or one by one (with game data; without it, known recipes can be removed)
 - Appearance: gender, skin, hairstyle, accessory, hair and eye colors, and the clothes worn (shirt, pants, hat, boots) with their dye colors; with game data, every choice shows the game's sprite, tinted like in the game, next to a full preview of the farmer drawn from the game's own sprites
 - Calendar and weather: change the day, season and year (with the days played and the load screen date following), and tomorrow's weather in the valley and on Ginger Island
+- Community Center: every bundle by room with what was given; complete a bundle (restoring the room when it's the last one, with what it unlocks) or reset one in a room not restored yet
 - Animals: every farm animal by house; rename, change friendship (with hearts) and happiness, move to another coop or barn with room
 - Chests: every container of the save (chests, big chests, fridges, mini-fridges, auto-grabbers…) by place, with its fill level; open one to change quantities and qualities, take items out (into a farmer's inventory or discarded) and, with game data, add items
 - Museum: every donation on a plan of the museum's displays; move pieces by drag and drop, take one back (into a farmer's inventory or discarded), and with game data, donate straight from an inventory and see the missing pieces. Gunther's rewards already received are never touched

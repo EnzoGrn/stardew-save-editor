@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>{{ t('bundles.title') }}</h1>
+
+{% if cc.joja %}
+<p class="note standalone">{{ t('bundles.joja') }}</p>
+{% else %}
+<p class="help">{{ t('bundles.help') }}</p>
+{% endif %}
+
+{% for room in cc.rooms %}
+<section class="cc-room">
+  <h2>{{ room.label }}
+    <small class="muted">{{ t('bundles.room_progress', done=room.done, total=room.bundles|length) }}{% if room.restored %} · {{ t('bundles.restored') }}{% endif %}</small></h2>
+  <div class="bundle-grid">
+  {% for b in room.bundles %}
+    <article class="bundle {{ 'complete' if b.complete }}" id="bundle-{{ b.id }}">
+      <header>
+        <h3>{{ b.title }}</h3>
+        <span class="bundle-count">{{ b.given }}/{{ b.need }}</span>
+      </header>
+      <meter min="0" max="{{ b.need }}" value="{{ b.given }}"></meter>
+      <ul class="ingredients">
+      {% for ing in b.ingredients %}
+        <li class="{{ 'given' if ing.donated }}" title="{{ ing.name }}">
+          <span class="icon-box" aria-hidden="true">{% if ing.icon %}<span class="sprite" data-icon="{{ ing.icon }}"></span>{% endif %}</span>
+          <span class="ingredient-name">{{ ing.name }}{% if not ing.gold and ing.count > 1 %} ×{{ ing.count }}{% endif %}
+            {% if not ing.gold and ing.quality %}<small class="quality-tag">{{ t('quality.' ~ ing.quality, default='') }}</small>{% endif %}</span>
+          {% if ing.donated %}<span class="given-mark" aria-label="{{ t('bundles.given') }}">✓</span>{% endif %}
+        </li>
+      {% endfor %}
+      </ul>
+      {% if b.need < b.ingredients|length %}<p class="muted bundle-need">{{ t('bundles.any_of', need=b.need, total=b.ingredients|length) }}</p>{% endif %}
+      {% if b.reward_item %}
+      <p class="bundle-reward">{{ t('bundles.reward') }}
+        {% if b.reward_item.icon %}<span class="sprite" data-icon="{{ b.reward_item.icon }}" aria-hidden="true"></span>{% endif %}
+        <strong>{{ b.reward_item.name }}{% if b.reward_item.count > 1 %} ×{{ b.reward_item.count }}{% endif %}</strong>
+        {% if b.reward_waiting %}<span class="reward-waiting">{{ t('bundles.reward_waiting') }}</span>{% endif %}</p>
+      {% endif %}
+      {% if b.editable %}
+      <div class="bundle-actions">
+        {% if not b.complete %}
+        <form method="post" action="{{ url_for('change_bundle', save_id=farm.id, bundle_id=b.id, action='complete') }}"
+              data-confirm="{{ t('bundles.confirm_complete', name=b.title) }}">
+          <button class="secondary">{{ t('bundles.complete') }}</button></form>
+        {% endif %}
+        {% if not room.restored and b.given %}
+        <form method="post" action="{{ url_for('change_bundle', save_id=farm.id, bundle_id=b.id, action='reset') }}"
+              data-confirm="{{ t('bundles.confirm_reset', name=b.title) }}">
+          <button class="secondary">{{ t('bundles.reset') }}</button></form>
+        {% endif %}
+      </div>
+      {% endif %}
+    </article>
+  {% endfor %}
+  </div>
+</section>
+{% endfor %}
+
+<script src="{{ url_for('static', filename='items.js') }}"></script>
+{% endblock %}
