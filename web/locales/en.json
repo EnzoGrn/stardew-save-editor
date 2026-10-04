@@ -2,7 +2,7 @@
   "_name": "English",
   "_thousands": ",",
 
-  "app.title": "Save manager",
+  "app.title": "Stardew Save Editor",
   "lang.label": "Language",
   "warning.close_game": "Close Stardew Valley before editing a save: the game would overwrite your changes the next time it saves.",
   "warning.hide": "Hide this warning",

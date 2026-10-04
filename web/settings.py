@@ -15,6 +15,7 @@ def app_dir():
         base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
     else:
         base = Path.home() / ".config"
+    # The project's former name, kept so settings and downloaded tools carry over
     return base / "StardewSaveManager"
 
 

@@ -1,27 +1,34 @@
-# Stardew Valley save manager
+# Stardew Save Editor
 
-A local app (Python + your browser) to view and edit your Stardew Valley 1.6 saves.
+A local app to view and edit your Stardew Valley 1.6 saves, in your browser: farmers, inventories, chests, animals, museum, Community Center bundles, calendar and more. Every change is backed up first.
 
-## Installation
+It runs entirely on your computer and works offline (only the optional, one-time game data preparation downloads a tool). It's an unofficial fan project, not affiliated with ConcernedApe.
 
-Requires Python 3.9 or later.
+## Download (Windows)
+
+1. Download `StardewSaveEditor.exe` from the [latest release](https://github.com/EnzoGrn/stardew-save-editor/releases/latest).
+2. Double-click it. A small window opens with the app's address, and your browser opens the app.
+3. Keep that window open while you use the app; close it to stop the app.
+
+Nothing to install. Windows may warn that the app is from an unknown publisher (it isn't signed): click **More info**, then **Run anyway**. Launching it a second time just reopens the app in your browser.
+
+## Running from the sources
+
+Requires Python 3.9 or later (Windows, macOS or Linux).
 
 ```
 pip install -r requirements.txt
-```
-
-## Running
-
-```
 python run.py
 ```
 
-Your browser opens at http://127.0.0.1:5173. The save folder is detected automatically:
+Your browser opens at http://127.0.0.1:5173 (another port is picked if that one is taken). Options: `--saves "D:\MySaves"` for another save folder, `--port 8000`, `--no-browser`.
+
+The save folder is detected automatically:
 
 - Windows: `%AppData%\StardewValley\Saves`
 - macOS / Linux: `~/.config/StardewValley/Saves`
 
-To use another folder, run `python run.py --saves "D:\MySaves"`, or pick it from the home page. The chosen folder is remembered.
+To use another folder, pass `--saves` or pick it from the home page. The chosen folder is remembered.
 
 **Always close the game before editing a save.** If the game rewrote the save while the page was open, the app refuses to write and asks you to reload.
 
@@ -74,10 +81,21 @@ To add a language:
 
 The language shows up in the switcher on the next launch. Item names follow the UI language when game data is prepared; otherwise they are the ones stored in the save, which are always in English.
 
+## Building the Windows app
+
+The `.exe` is built by PyInstaller, on Windows:
+
+```
+pip install -r requirements.txt pyinstaller
+pyinstaller packaging/StardewSaveEditor.spec
+```
+
+The app is then `dist/StardewSaveEditor.exe`. GitHub Actions does the same on every push (`.github/workflows/build.yml`), runs the tests and checks that the built app answers; pushing a tag such as `v1.0.0` publishes a release with the `.exe` attached. The icon is drawn by `packaging/make_icon.py`.
+
 ## Project layout
 
 ```
-run.py              launcher
+run.py              launcher (also the .exe's entry point)
 sdvsave/            save logic, with no dependency on the UI
   xmlio.py          XML reading/writing identical to the game's format
   savegame.py       a save (reading + editing)
@@ -101,7 +119,15 @@ web/                Flask UI
   static/style.css
   static/items.js   item icons and the add-item search, shared by the inventory and chests
   static/farmer.js  full farmer preview, layering the game's sprites like the game does
+  static/fonts/     the UI fonts, shipped with the app so it works offline
+packaging/          the Windows .exe: PyInstaller recipe, icon
 tests/              automated tests: `pip install pytest`, then `python -m pytest`
 ```
 
 To add a feature: a method on `SaveGame` (reading + writing), a route in `web/app.py` that calls it through `edit(...)` (the backup is then automatic), and the form in the template. UI text is written `{{ t('my.key') }}` in templates and goes into every file in `web/locales/`; errors in the save logic raise `SaveError("error.my_key", param=...)`.
+
+## Credits
+
+- Fonts: [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans) and [Nunito](https://github.com/googlefonts/nunito), SIL Open Font License 1.1 (see `web/static/fonts/`).
+- Game data is read from your own copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack); none of the game's files are distributed with this app.
+- Stardew Valley is a game by ConcernedApe. This project isn't affiliated with or endorsed by ConcernedApe.

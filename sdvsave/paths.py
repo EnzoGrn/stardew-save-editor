@@ -16,7 +16,10 @@ def default_saves_dir():
 
 
 def backups_root(saves_dir):
-    """Backups go next to the Saves folder (not inside it, so the game isn't confused)."""
+    """Backups go next to the Saves folder (not inside it, so the game isn't confused).
+
+    The folder keeps the project's former name, so existing backups stay listed.
+    """
     return Path(saves_dir).parent / "SaveManagerBackups"
 
 

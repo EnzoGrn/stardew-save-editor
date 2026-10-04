@@ -1,0 +1,57 @@
+# Builds StardewSaveEditor.exe on Windows.
+# - Every push and pull request: tests, then the .exe as a downloadable build artifact
+# - A tag like v1.0.0: the same, plus a GitHub release with the .exe attached
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write  # creating the release on a tag
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install -r requirements.txt pyinstaller pytest
+
+      - name: Test
+        run: python -m pytest -q
+
+      - name: Check translations
+        run: python -m web.i18n
+
+      - name: Build
+        run: pyinstaller packaging/StardewSaveEditor.spec --noconfirm
+
+      - name: Smoke test
+        shell: pwsh
+        run: |
+          $app = Start-Process dist/StardewSaveEditor.exe -ArgumentList "--no-browser", "--port", "5299" -PassThru
+          Start-Sleep -Seconds 15
+          $answer = (Invoke-WebRequest http://127.0.0.1:5299/ping -UseBasicParsing).Content
+          Stop-Process -Id $app.Id -Force
+          if ($answer -ne "stardew-save-editor") { throw "unexpected answer: $answer" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: StardewSaveEditor
+          path: dist/StardewSaveEditor.exe
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/StardewSaveEditor.exe
+          generate_release_notes: true

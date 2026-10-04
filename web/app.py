@@ -1,4 +1,4 @@
-"""Local web UI of the save manager."""
+"""Local web UI of Stardew Save Editor."""
 import re
 from pathlib import Path
 
@@ -158,6 +158,15 @@ def use_saves_dir(path):
     app.config["SAVES_DIR"] = str(path)
     settings.save(saves_dir=str(path))
     flash(t("flash.folder_updated", n=count), "ok")
+
+
+# Answer of /ping: how a second launch recognizes the app already running on its port
+APP_ID = "stardew-save-editor"
+
+
+@app.route("/ping")
+def ping():
+    return APP_ID
 
 
 # --------------------------------------------------------------------- pages
