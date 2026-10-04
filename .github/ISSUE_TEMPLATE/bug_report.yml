@@ -1,0 +1,119 @@
+name: Bug report
+description: Something went wrong in the app, or a save behaves oddly in the game after an edit
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this! Every change is backed up first, so your save can be restored from the **Backups** page of the app.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+      placeholder: |
+        I moved a cow to another barn and saved. When loading the farm in the game, the cow was missing.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The page you were on and the changes you made, in order.
+      placeholder: |
+        1. Open the farm, go to Animals
+        2. Move "Daisy" to "Big Barn"
+        3. Save, then load the farm in the game
+    validations:
+      required: true
+
+  - type: input
+    id: app-version
+    attributes:
+      label: App version
+      description: The release you downloaded (for example v1.0.0), or "sources" with the commit if you run it with Python.
+      placeholder: v1.0.0
+    validations:
+      required: true
+
+  - type: input
+    id: game-version
+    attributes:
+      label: Game version
+      description: Shown on the farm page of the app ("Game version").
+      placeholder: 1.6.8
+    validations:
+      required: true
+
+  - type: dropdown
+    id: store
+    attributes:
+      label: Where does your game come from?
+      options:
+        - Steam
+        - GOG
+        - Xbox Game Pass / Microsoft Store
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows (StardewSaveEditor.exe)
+        - Windows (from the sources)
+        - macOS
+        - Linux
+    validations:
+      required: true
+
+  - type: dropdown
+    id: farm
+    attributes:
+      label: Farm type
+      options:
+        - Single player
+        - Multiplayer (I'm the host)
+        - Multiplayer (I'm a farmhand)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: game-data
+    attributes:
+      label: Game data
+      description: Item icons and names come from the game's data, prepared on the home page.
+      options:
+        - Prepared (icons and translated names show)
+        - Not prepared
+        - I don't know
+    validations:
+      required: true
+
+  - type: textarea
+    id: error
+    attributes:
+      label: Error message
+      description: Any error shown on the page, or the text printed in the app's console window (the black window that opens with the app).
+      render: text
+
+  - type: textarea
+    id: files
+    attributes:
+      label: Save files (optional, but very helpful)
+      description: |
+        A zipped copy of the save folder before the change makes most bugs easy to fix. The app's backups are in `SaveManagerBackups`, next to your `Saves` folder.
+        A save holds your farm and farmer names and the account IDs of each player: only share it if you're fine with that.
+      placeholder: Drag a .zip here
+
+  - type: checkboxes
+    id: closed-game
+    attributes:
+      label: Checks
+      options:
+        - label: The game was closed while I edited the save
+          required: false

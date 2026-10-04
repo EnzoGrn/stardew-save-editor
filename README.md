@@ -32,6 +32,10 @@ To use another folder, pass `--saves` or pick it from the home page. The chosen 
 
 **Always close the game before editing a save.** If the game rewrote the save while the page was open, the app refuses to write and asks you to reload.
 
+## Feedback
+
+Found a bug, or a save that behaves oddly in the game after an edit? [Open an issue](https://github.com/EnzoGrn/stardew-save-editor/issues/new/choose): the form asks for what's needed to fix it. Ideas of things to edit are welcome too.
+
 ## Features
 
 - Save list and farm details (date, farm type, time played, game version, editable Golden Walnuts)
