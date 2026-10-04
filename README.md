@@ -31,6 +31,7 @@ To use another folder, run `python run.py --saves "D:\MySaves"`, or pick it from
 - Renaming the farm and each farmer (the save folder keeps its name: it's an internal identifier)
 - Linked accounts: view and clear each farmer's `userID` (moving from Game Pass to Steam, changing accounts)
 - Per player: gold, Qi Gems, casino coins, max energy and health, backpack size
+- Wallet: special items, power books and masteries (from Data/Powers.json), owned ones highlighted; tick or untick to give or take one
 - Skills, with an option to trigger the level-up screen (recipes and professions) the next time the farmer sleeps
 - Inventory: item quantity and quality, item names in your language, and with game data: item icons, adding objects and machines (search by name), removing items, moving them by drag and drop, tool upgrade levels (basic to iridium)
 - Recipes: learn or forget cooking and crafting recipes, all at once or one by one (with game data; without it, known recipes can be removed)

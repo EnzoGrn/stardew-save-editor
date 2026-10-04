@@ -11,20 +11,31 @@
   if (!bar || !forms.length) return;
   document.documentElement.classList.add('has-savebar');
 
-  // A form's state: every named field and its value, in order (same names numbered)
+  // A form's state: the values sent under each field name. Most names have one value;
+  // a group of checkboxes (recipes, wallet) sends one per ticked box.
   const state = form => {
-    const seen = {};
-    return new Map([...new FormData(form)].map(([name, value]) => {
-      seen[name] = (seen[name] || 0) + 1;
-      return [`${name}#${seen[name]}`, String(value)];
-    }));
+    const values = new Map();
+    for (const [name, value] of new FormData(form)) {
+      if (!values.has(name)) values.set(name, []);
+      values.get(name).push(String(value));
+    }
+    return values;
   };
   const initial = new Map(forms.map(form => [form, state(form)]));
+  // Changed fields: a single value that differs counts once; in a group, each box
+  // ticked or unticked counts once, wherever it sits in the list
   const changes = form => {
     const before = initial.get(form), now = state(form);
     let count = 0;
-    for (const key of new Set([...before.keys(), ...now.keys()])) {
-      if (before.get(key) !== now.get(key)) count++;
+    for (const name of new Set([...before.keys(), ...now.keys()])) {
+      const a = before.get(name) || [], b = now.get(name) || [];
+      if (a.length <= 1 && b.length <= 1) {
+        if (a[0] !== b[0]) count++;
+        continue;
+      }
+      const left = new Set(a), right = new Set(b);
+      for (const value of left) if (!right.has(value)) count++;
+      for (const value of right) if (!left.has(value)) count++;
     }
     return count;
   };

@@ -67,6 +67,33 @@
   <button>{{ t('skills.save') }}</button>
 </form>
 </section>
+
+<section id="wallet">
+<h2>{{ t('wallet.title') }}</h2>
+{% if powers %}
+<form method="post" action="{{ url_for('set_powers', save_id=farm.id, uid=p.uid) }}" data-savebar>
+  <p class="help">{{ t('wallet.help') }}</p>
+  {% for g in powers %}
+  <h3>{{ t('wallet.group_' ~ g.group) }} <small class="muted">{{ t('wallet.count', owned=g.powers|selectattr('owned')|list|length, total=g.powers|length) }}</small></h3>
+  <ul class="power-grid">
+    {% for pw in g.powers %}
+    <li>
+      <label class="power {{ 'owned' if pw.owned }} {{ 'locked' if not pw.editable }}" title="{{ pw.description or pw.name }}">
+        <input type="checkbox" name="power" value="{{ pw.id }}" {% if pw.owned %}checked{% endif %} {% if not pw.editable %}disabled{% endif %}>
+        <span class="power-icon" aria-hidden="true">{% if pw.icon %}<span class="sprite" data-icon="{{ pw.icon }}"></span>{% endif %}</span>
+        <span class="power-name">{{ pw.name }}</span>
+        {% if pw.shared %}<span class="power-tag" title="{{ t('wallet.shared') }}">{{ t('wallet.shared_short') }}</span>{% endif %}
+      </label>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+  <button>{{ t('wallet.save') }}</button>
+</form>
+{% else %}
+<p class="note standalone">{{ t('wallet.no_game_data') }} <a href="{{ url_for('index') }}#game-data">{{ t('inventory.enable_game_data') }}</a></p>
+{% endif %}
+</section>
 </div>
 
 <div class="pane" id="pane-appearance" role="tabpanel">
@@ -450,6 +477,14 @@ document.querySelectorAll('form.recipes').forEach(form => {
       form.dispatchEvent(new Event('change', { bubbles: true }));  // the save bar counts them
     }));
   filter.addEventListener('keydown', e => { if (e.key === 'Enter') e.preventDefault(); });
+});
+
+// Wallet: a tile looks owned as soon as its box is ticked
+document.querySelectorAll('.power input').forEach(box =>
+  box.addEventListener('change', () => box.closest('.power').classList.toggle('owned', box.checked)));
+document.querySelector('#wallet form')?.addEventListener('change', event => {
+  if (event.target.matches?.('form')) event.target.querySelectorAll('.power input').forEach(box =>
+    box.closest('.power').classList.toggle('owned', box.checked));
 });
 
 // Skill level bars follow their field

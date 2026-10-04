@@ -1150,3 +1150,60 @@ class SaveGame:
         for quest in self._quest_copies(uid, index):
             quest.getparent().remove(quest)
         return title
+
+    # ------------------------------------------------------------------ special items and powers
+    # A power's condition (see GameData.parse_power_condition) points at a mail flag, an event
+    # seen or a stat, of the farmer ("Current") or of the host ("Host": shared by the farm).
+
+    def _power_farmers(self, uid, who):
+        host = self.root.find("player").findtext("UniqueMultiplayerID")
+        return self._copies(host if who == "Host" else uid)
+
+    @staticmethod
+    def _stat_entry(farmer, key):
+        for item in farmer.findall("stats/Values/item"):
+            if item.findtext("key/string") == key:
+                return item
+        return None
+
+    def has_power(self, uid, condition):
+        kind, who, key, minimum = condition
+        farmer = self._power_farmers(uid, who)[0]
+        if kind == "mail":
+            return any(m.text == key for m in farmer.find("mailReceived"))
+        if kind == "event":
+            return any(e.text == key for e in farmer.find("eventsSeen"))
+        entry = self._stat_entry(farmer, key)
+        return entry is not None and _int(entry, "value/unsignedInt") >= minimum
+
+    def set_power(self, uid, condition, owned):
+        """Gives or takes a special item or power, in every copy of the farmer it belongs to."""
+        kind, who, key, minimum = condition
+        if self.has_power(uid, condition) == owned:
+            return False
+        for farmer in self._power_farmers(uid, who):
+            if kind in ("mail", "event"):
+                container = farmer.find("mailReceived" if kind == "mail" else "eventsSeen")
+                if container is None:
+                    continue
+                if owned:
+                    tag = container[0].tag if len(container) else ("string" if kind == "mail" else "int")
+                    etree.SubElement(container, tag).text = key
+                else:
+                    for node in [n for n in container if n.text == key]:
+                        container.remove(node)
+                continue
+            values = farmer.find("stats/Values")
+            if values is None:
+                continue
+            entry = self._stat_entry(farmer, key)
+            if owned:
+                if entry is None:
+                    entry = etree.SubElement(values, "item")
+                    etree.SubElement(etree.SubElement(entry, "key"), "string").text = key
+                    etree.SubElement(etree.SubElement(entry, "value"), "unsignedInt").text = str(minimum)
+                else:
+                    _set(entry.find("value"), "unsignedInt", max(minimum, _int(entry, "value/unsignedInt")))
+            elif entry is not None:
+                values.remove(entry)
+        return True

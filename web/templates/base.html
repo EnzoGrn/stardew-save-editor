@@ -45,7 +45,7 @@ try { if (localStorage.getItem('warningDismissed')) document.documentElement.cla
 <div class="shell {{ 'with-nav' if farm }}">
   {% if farm %}
   <nav class="sidebar" aria-label="{{ t('nav.sections') }}">
-    <a class="back" href="{{ url_for('index') }}">← {{ t('nav.all_saves') }}</a>
+    <a class="back" href="{{ url_for('index') }}">{% if ui_icon('back') %}<span class="sprite ui-icon" data-icon="{{ ui_icon('back') }}" aria-hidden="true"></span>{% else %}←{% endif %} {{ t('nav.all_saves') }}</a>
     <p class="nav-group">{{ t('nav.group_farm') }}</p>
     <ul>
       {% for endpoint, key, label in (('farm', 'farm', 'nav.farm'), ('animals', 'animals', 'nav.animals'),

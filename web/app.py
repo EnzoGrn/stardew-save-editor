@@ -254,7 +254,41 @@ def player(save_id, uid):
                            recipes=recipe_lists(sg.recipes(uid), data),
                            look=look_view(sg.appearance(uid), data),
                            quests=quests_view(sg.quests(uid), data),
+                           powers=powers_view(sg, uid, data),
                            has_game_data=data is not None, tab=uid)
+
+
+def powers_view(sg, uid, data):
+    """Special items and powers by group (items, books, masteries), owned or not."""
+    if data is None:
+        return []
+    groups = {}
+    for power in data.powers(current_lang()):
+        condition = power["condition"]
+        groups.setdefault(power["group"], []).append({
+            **power, "icon": icon_style(power["icon"], scale=2),
+            "owned": sg.has_power(uid, condition) if condition else False,
+            "editable": condition is not None, "shared": bool(condition and condition[1] == "Host"),
+        })
+    return [{"group": g, "powers": groups[g]} for g in ("item", "book", "mastery") if g in groups]
+
+
+@app.post("/save/<save_id>/player/<uid>/powers")
+def set_powers(save_id, uid):
+    data = game_data()
+    if data is None:
+        abort(400)
+    wanted = set(request.form.getlist("power"))
+
+    def change(sg):
+        changed = 0
+        for power in data.powers(current_lang()):
+            if power["condition"]:
+                changed += sg.set_power(uid, power["condition"], power["id"] in wanted)
+        return {"n": changed}
+
+    edit(save_id, change, "flash.powers_saved")
+    return redirect(url_for("player", save_id=save_id, uid=uid) + "#wallet")
 
 
 def quests_view(quests, data):

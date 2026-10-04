@@ -582,6 +582,8 @@ class GameData:
         "weather_Rain": (365, 421, 12, 8), "weather_Storm": (377, 421, 12, 8),
         "weather_Snow": (401, 421, 12, 8),
         "weather_GreenRain": (365, 421, 12, 8),  # no icon of its own on this sheet: rain's
+        # The orange back arrow of the game's menus
+        "back": (352, 495, 12, 11),
         # Skills, as on the skills page (ids of constants.SKILLS)
         "skill_farming": (10, 428, 10, 10), "skill_fishing": (20, 428, 10, 10),
         "skill_foraging": (60, 428, 10, 10), "skill_mining": (30, 428, 10, 10),
@@ -599,6 +601,49 @@ class GameData:
         return {"sheet": self.UI_SHEET, "x": x, "y": y, "w": w, "h": h, "sheet_w": size[0], "sheet_h": size[1]}
 
 
+    # ------------------------------------------------------------------ special items and powers
+    # Data/Powers.json (1.6): the "wallet" of the skills page. Each power has a 16x16 icon at
+    # TexturePosition on TexturePath, and an UnlockedCondition among:
+    #   PLAYER_HAS_MAIL <Current|Host> <flag>, PLAYER_HAS_SEEN_EVENT Current <id>,
+    #   PLAYER_STAT Current <stat> <minimum>
+    # Others (from mods) are shown but can't be changed.
+    _POWER_CONDITIONS = {"PLAYER_HAS_MAIL": "mail", "PLAYER_HAS_SEEN_EVENT": "event", "PLAYER_STAT": "stat"}
+
+    @classmethod
+    def parse_power_condition(cls, condition):
+        """("mail"|"event"|"stat", "Current"|"Host", key, minimum) or None if not understood."""
+        parts = (condition or "").split()
+        if len(parts) < 3 or parts[0] not in cls._POWER_CONDITIONS or parts[1] not in ("Current", "Host"):
+            return None
+        kind = cls._POWER_CONDITIONS[parts[0]]
+        if kind == "stat":
+            if len(parts) != 4 or not parts[3].isdigit():
+                return None
+            return kind, parts[1], parts[2], int(parts[3])
+        return (kind, parts[1], parts[2], 1) if len(parts) == 3 else None
+
+    def powers(self, lang):
+        """Every special item and power: [{"id", "name", "description", "icon", "group", "condition"}]."""
+        result = []
+        for power_id, data in (_read_json(self.data_dir / "Data" / "Powers.json") or {}).items():
+            if not isinstance(data, dict):
+                continue
+            sheet = (data.get("TexturePath") or "").replace("\\", "/")
+            position = data.get("TexturePosition") or {}
+            size = self._sheet_size(sheet) if sheet else None
+            group = "book" if power_id.startswith("Book_") else "mastery" if power_id.startswith("Mastery_") else "item"
+            result.append({
+                "id": power_id,
+                "name": self.text(data.get("DisplayName"), lang) or _readable_id(power_id),
+                "description": self.text(data.get("Description"), lang) or "",
+                "icon": None if size is None else {"sheet": sheet, "x": position.get("X", 0), "y": position.get("Y", 0),
+                                                   "w": 16, "h": 16, "sheet_w": size[0], "sheet_h": size[1]},
+                "group": group,
+                "condition": self.parse_power_condition(data.get("UnlockedCondition")),
+            })
+        return result
+
+
 def _tmx_layer_gids(data):
     """Tile ids of a TMX layer, whatever its encoding (csv, or base64 maybe compressed)."""
     if data is None:
@@ -614,3 +659,10 @@ def _tmx_layer_gids(data):
             raw = gzip.decompress(raw)
         return list(struct.unpack(f"<{len(raw) // 4}I", raw))
     return [int(tile.get("gid", "0")) for tile in data.findall("tile")]  # plain XML
+
+
+
+def _readable_id(item_id):
+    """A name made from an id when the game's text is missing: "Book_PriceCatalogue" → "Price Catalogue"."""
+    words = re.sub(r"([a-z])([A-Z0-9])", r"\1 \2", item_id.split("_", 1)[-1] if "_" in item_id else item_id)
+    return words.replace("_", " ")

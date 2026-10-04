@@ -531,5 +531,18 @@
   "savebar.saving": "Saving…",
   "savebar.undo": "Undo",
   "savebar.save": "Save",
-  "animals.hearts_hint": "Click a heart to set the friendship (200 points per heart)"
+  "animals.hearts_hint": "Click a heart to set the friendship (200 points per heart)",
+
+  "wallet.title": "Wallet",
+  "wallet.help": "Special items and powers, as on the game's skills page. Click a tile to give it or take it away; hover it for what it does.",
+  "wallet.group_item": "Special items",
+  "wallet.group_book": "Power books",
+  "wallet.group_mastery": "Masteries",
+  "wallet.count": "{owned} of {total}",
+  "wallet.shared": "Shared by the whole farm (kept by the host)",
+  "wallet.save": "Save the wallet",
+  "wallet.no_game_data": "The wallet needs the game data (Data/Powers.json).",
+  "flash.powers_saved.one": "Wallet saved: {n} change.",
+  "flash.powers_saved.other": "Wallet saved: {n} changes.",
+  "wallet.shared_short": "farm"
 }
