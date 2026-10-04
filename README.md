@@ -131,3 +131,7 @@ To add a feature: a method on `SaveGame` (reading + writing), a route in `web/ap
 - Fonts: [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans) and [Nunito](https://github.com/googlefonts/nunito), SIL Open Font License 1.1 (see `web/static/fonts/`).
 - Game data is read from your own copy of the game, unpacked by [StardewXnbHack](https://github.com/Pathoschild/StardewXnbHack); none of the game's files are distributed with this app.
 - Stardew Valley is a game by ConcernedApe. This project isn't affiliated with or endorsed by ConcernedApe.
+
+## License
+
+MIT (see `LICENSE`). The bundled fonts keep their own license, the SIL Open Font License 1.1.
